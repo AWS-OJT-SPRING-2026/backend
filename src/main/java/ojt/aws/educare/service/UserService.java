@@ -26,4 +26,5 @@ public interface UserService {
     ApiResponse<String> forgotPassword(ForgotPasswordRequest request);
     ApiResponse<String> verifyOtp(VerifyOtpRequest request);
     ApiResponse<String> resetPassword(ResetPasswordRequest request);
+
 }
