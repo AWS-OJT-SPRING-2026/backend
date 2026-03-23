@@ -6,6 +6,7 @@ import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.PageResponse;
 import ojt.aws.educare.dto.response.StudentResponse;
 import ojt.aws.educare.dto.response.UserResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -14,10 +15,10 @@ public interface UserService {
     ApiResponse<List<UserResponse>> getAllUsers();
     ApiResponse<Object> getUserByID(Integer userID);
     ApiResponse<UserResponse> createTeacher(TeacherCreateRequest request);
-    ApiResponse<StudentResponse> createStudent(StudentCreateRequest request);
+    ApiResponse<StudentResponse> createStudent(StudentCreateRequest request, MultipartFile avatar);
     ApiResponse<PageResponse<UserResponse>> getUsersWithPaginationAndFilter(int page, int size, String roleName, String keyword);
     ApiResponse<UserResponse> updateTeacher(Integer userId, TeacherUpdateRequest request);
-    ApiResponse<StudentResponse> updateStudent(Integer userId, StudentUpdateRequest request);
+    ApiResponse<StudentResponse> updateStudent(Integer userId, StudentUpdateRequest request, MultipartFile newAvatar);
     ApiResponse<Void> toggleUserStatus(Integer userID);
     ApiResponse<Void> deleteUser(Integer userID);
 
@@ -26,5 +27,7 @@ public interface UserService {
     ApiResponse<String> forgotPassword(ForgotPasswordRequest request);
     ApiResponse<String> verifyOtp(VerifyOtpRequest request);
     ApiResponse<String> resetPassword(ResetPasswordRequest request);
+
+    ApiResponse<String> uploadAvatar(MultipartFile file);
 
 }

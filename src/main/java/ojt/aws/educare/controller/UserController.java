@@ -9,13 +9,12 @@ import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.PageResponse;
 import ojt.aws.educare.dto.response.StudentResponse;
 import ojt.aws.educare.dto.response.UserResponse;
-import ojt.aws.educare.entity.User;
 import ojt.aws.educare.service.UserService;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -48,10 +47,12 @@ public class UserController {
         return userService.createTeacher(request);
     }
 
-    @PostMapping("/students")
+    @PostMapping(value = "/students", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<StudentResponse> createStudent(@Valid @RequestBody StudentCreateRequest request) {
-        return userService.createStudent(request);
+    public ApiResponse<StudentResponse> createStudent(
+            @RequestPart("data") @Valid StudentCreateRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.createStudent(request, avatar);
     }
 
     @GetMapping("/paging")
@@ -74,12 +75,13 @@ public class UserController {
         return userService.updateTeacher(userId, request);
     }
 
-    @PutMapping("/students/{userId}")
+    @PutMapping(value = "/students/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<StudentResponse> updateStudent(
             @PathVariable Integer userId,
-            @Valid @RequestBody StudentUpdateRequest request) {
-        return userService.updateStudent(userId, request);
+            @RequestPart("data") @Valid StudentUpdateRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.updateStudent(userId, request, avatar);
     }
 
     @DeleteMapping("/{userId}")
@@ -113,5 +115,10 @@ public class UserController {
     @PostMapping("/reset-password")
     public ApiResponse<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         return userService.resetPassword(request);
+    }
+
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        return userService.uploadAvatar(file);
     }
 }

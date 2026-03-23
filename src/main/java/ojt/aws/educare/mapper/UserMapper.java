@@ -43,6 +43,7 @@ public interface UserMapper {
     @Mapping(target = "role", source = "role")
     @Mapping(target = "createdAt", source = "createdAt")
     @Mapping(target = "classes", source = "user", qualifiedByName = "mapUserToClassNames")
+    @Mapping(target = "avatarUrl", source = "avatarUrl")
     UserResponse toUserResponse(User user);
 
     @Mapping(target = "username", source = "user.username")
@@ -51,7 +52,9 @@ public interface UserMapper {
     @Mapping(target = "status", source = "user.status")
     @Mapping(target = "createdAt", source = "user.createdAt")
     @Mapping(target = "role", source = "user.role")
+    @Mapping(target = "avatarUrl", source = "user.avatarUrl")
     StudentResponse toStudentResponse(Student student);
+
     List<StudentResponse> toStudentResponseList(List<Student> students);
 
     @Mapping(target = "username", source = "user.username")
@@ -61,14 +64,17 @@ public interface UserMapper {
     @Mapping(target = "createdAt", source = "user.createdAt")
     @Mapping(target = "role", source = "user.role")
     @Mapping(target = "classes", source = "user", qualifiedByName = "mapUserToClassNames")
+    @Mapping(target = "avatarUrl", source = "user.avatarUrl")
     TeacherResponse toTeacherResponse(Teacher teacher);
+
     List<TeacherResponse> toTeacherResponseList(List<Teacher> teachers);
 
     List<UserResponse> toUserResponseList(List<User> users);
 
     @Named("mapUserToClassNames")
     default List<String> mapUserToClassNames(User user) {
-        if (user == null) return null;
+        if (user == null)
+            return null;
 
         // Nếu là Teacher
         if (user.getTeacher() != null && user.getTeacher().getClassrooms() != null) {
@@ -87,8 +93,9 @@ public interface UserMapper {
         return null;
     }
 
-    //update
+    // update
     void updateUserFromTeacherRequest(@MappingTarget User user, TeacherUpdateRequest request);
+
     void updateUserFromStudentRequest(@MappingTarget User user, StudentUpdateRequest request);
 
     @Mapping(target = "user", ignore = true)

@@ -21,6 +21,7 @@ public class UserResponse {
     String phone;
     String password;
     String status;
+    String avatarUrl;
     LocalDateTime createdAt;
     List<String> classes;
     RoleResponse role;

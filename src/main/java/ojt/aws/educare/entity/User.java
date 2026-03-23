@@ -45,6 +45,9 @@ public class User {
     @Column(name = "Status", nullable = false)
     String status;
 
+    @Column(name = "AvatarUrl", length = 500)
+    String avatarUrl;
+
     @Column(name = "LastActiveAt")
     LocalDateTime lastActiveAt;
 

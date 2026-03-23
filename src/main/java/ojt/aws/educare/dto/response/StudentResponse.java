@@ -22,6 +22,7 @@ public class StudentResponse {
     String email;
     String phone;
     String status;
+    String avatarUrl;
     LocalDateTime createdAt;
     UserResponse.RoleResponse role;
 
