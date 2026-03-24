@@ -44,6 +44,11 @@ public class SecurityConfig {
     private CustomJwtDecoder customJwtDecoder;
 
     @Bean
+    public UserActivityFilter userActivityFilter() {
+        return new UserActivityFilter();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -59,6 +64,7 @@ public class SecurityConfig {
                                         .jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
         );
+        httpSecurity.addFilterAfter(userActivityFilter(), org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
         httpSecurity.csrf(AbstractHttpConfigurer::disable);
 
         return httpSecurity.build();

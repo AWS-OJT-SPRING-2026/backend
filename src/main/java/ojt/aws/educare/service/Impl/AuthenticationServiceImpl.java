@@ -23,6 +23,8 @@ import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.repository.InvalidatedTokenRepository;
 import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.service.AuthenticationService;
+import ojt.aws.educare.service.MonitoringService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     InvalidatedTokenRepository invalidatedTokenRepository;
     PasswordEncoder passwordEncoder;
 //    AuditLogService auditLogService;
+    @Autowired
+    MonitoringService monitoringService;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -74,6 +78,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         String jit = signedToken.getJWTClaimsSet().getJWTID();
         Date expiryDate = signedToken.getJWTClaimsSet().getExpirationTime();
+        String username = signedToken.getJWTClaimsSet().getSubject();
+
+        // Remove from active monitoring list immediately
+        monitoringService.removeActiveUser(username);
 
         InvalidatedToken invalidatedToken = InvalidatedToken.builder()
                 .iD(jit)
@@ -90,7 +98,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         Date expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
 
-        var verified = signedJWT.verify(verifier);
+        boolean verified = signedJWT.verify(verifier);
 
         if (!(verified && expiryTime.after(new Date()))) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
