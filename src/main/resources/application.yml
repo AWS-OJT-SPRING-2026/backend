@@ -13,6 +13,9 @@ spring:
     password: 123456
     driver-class-name: org.postgresql.Driver
 
+  config:
+    import: optional:file:BE/.env[.properties]
+
   jpa:
     hibernate:
       ddl-auto: update
