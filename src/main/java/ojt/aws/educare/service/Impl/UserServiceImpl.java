@@ -396,6 +396,139 @@ public class UserServiceImpl implements UserService {
         return ApiResponse.success("Cập nhật ảnh đại diện thành công", s3UploadService.resolveFileUrl(avatarUrl));
     }
 
+    @Override
+    public ApiResponse<Object> getMyProfile() {
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        String roleName = user.getRole().getRoleName().toUpperCase();
+
+        if ("STUDENT".equals(roleName) && user.getStudent() != null) {
+            StudentResponse studentResponse = userMapper.toStudentResponse(user.getStudent());
+            resolveAvatar(studentResponse);
+            return ApiResponse.success("Lấy hồ sơ cá nhân thành công", studentResponse);
+
+        } else if ("TEACHER".equals(roleName) && user.getTeacher() != null) {
+            TeacherResponse teacherResponse = userMapper.toTeacherResponse(user.getTeacher());
+            resolveAvatar(teacherResponse);
+            return ApiResponse.success("Lấy hồ sơ cá nhân thành công", teacherResponse);
+        }
+
+        UserResponse userResponse = userMapper.toUserResponse(user);
+        resolveAvatar(userResponse);
+        return ApiResponse.success("Lấy hồ sơ cá nhân thành công", userResponse);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<StudentResponse> updateMyStudentProfile(StudentUpdateRequest request, MultipartFile newAvatar) {
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.EMAIL_EXISTED);
+        }
+
+        Student student = user.getStudent();
+        if (student == null) throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        userMapper.updateUserFromStudentRequest(user, request);
+        userMapper.updateStudentFromRequest(student, request);
+
+        if (newAvatar != null && !newAvatar.isEmpty()) {
+            if (user.getAvatarUrl() != null) {
+                s3UploadService.deleteFileFromUrl(user.getAvatarUrl());
+            }
+            String newAvatarUrl = s3UploadService.uploadFile(newAvatar);
+            user.setAvatarUrl(newAvatarUrl);
+        }
+
+        userRepository.save(user);
+        StudentResponse studentResponse = userMapper.toStudentResponse(student);
+        resolveAvatar(studentResponse);
+        return ApiResponse.success("Cập nhật hồ sơ cá nhân thành công", studentResponse);
+    }
+
+    @Override
+    public ApiResponse<String> initChangePassword(ChangePasswordInitRequest request) {
+        // Lấy thông tin user từ Token đang đăng nhập
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 1. Kiểm tra giới hạn 7 ngày
+        if (user.getLastPasswordChangeAt() != null &&
+                user.getLastPasswordChangeAt().plusDays(7).isAfter(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.PASSWORD_CHANGE_LIMIT);
+        }
+
+        // 2. Kiểm tra mật khẩu hiện tại có đúng không
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_INCORRECT);
+        }
+
+        // 3. Nếu mọi thứ hợp lệ -> Tạo và gửi OTP
+        String otpCode = generateOtp();
+        passwordResetTokenRepository.markAllTokensAsUsed(user.getUserID());
+
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .token(UUID.randomUUID().toString())
+                .otpCode(otpCode)
+                .expiryDate(LocalDateTime.now().plusMinutes(2)) // Cho 2 phút để nhập mã
+                .used(false)
+                .user(user)
+                .createdDate(LocalDateTime.now())
+                .build();
+
+        passwordResetTokenRepository.save(resetToken);
+        emailService.sendOtpEmail(user.getEmail(), otpCode, user.getFullName());
+
+        return ApiResponse.success("Mã OTP đã được gửi đến email của bạn", null);
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<String> confirmChangePassword(ChangePasswordConfirmRequest request) {
+        // Kiểm tra 2 mật khẩu mới có khớp nhau không
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORDS_NOT_MATCH);
+        }
+
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Kiểm tra mã OTP
+        PasswordResetToken resetToken = passwordResetTokenRepository
+                .findByOtpCodeAndUser_Email(request.getOtpCode(), user.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP_OR_EMAIL));
+
+        if (resetToken.getUsed()) {
+            throw new AppException(ErrorCode.OTP_ALREADY_USED);
+        }
+
+        if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.OTP_EXPIRED);
+        }
+
+        // Đổi mật khẩu
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        // CHỐT THỜI GIAN: Đánh dấu thời điểm đổi mật khẩu thành công để bắt đầu đếm 7 ngày
+        user.setLastPasswordChangeAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        // Hủy OTP
+        resetToken.setUsed(true);
+        passwordResetTokenRepository.save(resetToken);
+
+        return ApiResponse.success("Đổi mật khẩu thành công", null);
+    }
+
     private void resolveAvatar(List<UserResponse> userResponses) {
         if (userResponses == null || userResponses.isEmpty()) {
             return;
