@@ -139,7 +139,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
 
     private String deriveFallbackTitle(List<ChatMessageRequest> messages) {
         if (messages == null || messages.isEmpty()) {
-            return "Cuoc hoi thoai moi";
+            return "Cuộc hội thoại mới";
         }
 
         return messages.stream()
@@ -149,7 +149,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
                 .filter(content -> !content.isEmpty())
                 .findFirst()
                 .map(this::truncateTitle)
-                .orElse("Cuoc hoi thoai moi");
+                .orElse("Cuộc hội thoại mới");
     }
 
     private String truncateTitle(String title) {
