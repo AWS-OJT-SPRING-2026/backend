@@ -36,6 +36,7 @@ public interface UserMapper {
     @Mapping(target = "classMembers", ignore = true)
     @Mapping(target = "submissions", ignore = true)
     @Mapping(target = "aiChatHistories", ignore = true)
+    @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
     @Mapping(target = "learningProfiles", ignore = true)
     Student toStudent(StudentCreateRequest request);
@@ -110,6 +111,7 @@ public interface UserMapper {
     @Mapping(target = "classMembers", ignore = true)
     @Mapping(target = "submissions", ignore = true)
     @Mapping(target = "aiChatHistories", ignore = true)
+    @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
     @Mapping(target = "learningProfiles", ignore = true)
     void updateStudentFromRequest(@MappingTarget Student student, StudentUpdateRequest request);
