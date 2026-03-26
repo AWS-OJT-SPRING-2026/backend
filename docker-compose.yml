@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # 1. Dịch vụ Database PostgreSQL
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: educare_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: EDU_CARE
+    ports:
+      - "5432:5432" # Ánh xạ port 5432 của máy tính vào 5432 của Docker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Lưu trữ dữ liệu để không bị mất khi tắt Docker
+
+  # 2. (Tùy chọn) Giao diện web quản lý Database (Giống pgAdmin app)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: educare_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@educare.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres-db
+
+# Định nghĩa volume để lưu dữ liệu vật lý
+volumes:
+  postgres_data:

@@ -30,4 +30,9 @@ public interface UserService {
 
     ApiResponse<String> uploadAvatar(MultipartFile file);
 
+    ApiResponse<Object> getMyProfile();
+    ApiResponse<StudentResponse> updateMyStudentProfile(StudentUpdateRequest request, MultipartFile newAvatar);
+    ApiResponse<String> initChangePassword(ChangePasswordInitRequest request);
+    ApiResponse<String> confirmChangePassword(ChangePasswordConfirmRequest request);
+
 }

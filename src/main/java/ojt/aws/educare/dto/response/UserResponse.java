@@ -23,6 +23,7 @@ public class UserResponse {
     String status;
     String avatarUrl;
     LocalDateTime createdAt;
+    LocalDateTime lastPasswordChangeAt;
     List<String> classes;
     RoleResponse role;
 

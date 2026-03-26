@@ -77,7 +77,8 @@ public class SecurityConfig {
                 "http://localhost:*",
                 "https://localhost:*",
                 "http://127.0.0.1:*",
-                "https://*.ngrok-free.app"
+                "https://*.ngrok-free.app",
+                "https://*.amplifyapp.com"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));

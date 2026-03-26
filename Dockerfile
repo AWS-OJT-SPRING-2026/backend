@@ -2,8 +2,11 @@
 FROM maven:3.9.6-amazoncorretto-21 AS build
 WORKDIR /app
 
-# Copy the pom.xml and source code
+# Copy the pom.xml and download dependencies
 COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copy source code
 COPY src ./src
 
 # Build the application, skipping tests to speed up the process

@@ -51,6 +51,9 @@ public class User {
     @Column(name = "LastActiveAt")
     LocalDateTime lastActiveAt;
 
+    @Column(name = "LastPasswordChangeAt")
+    LocalDateTime lastPasswordChangeAt;
+
     @CreationTimestamp
     @Column(name = "CreatedAt", updatable = false)
     LocalDateTime createdAt;

@@ -8,9 +8,9 @@ spring:
     name: educare-app
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/EDU_CARE
-    username: postgres
-    password: 123456
+    url: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   config:

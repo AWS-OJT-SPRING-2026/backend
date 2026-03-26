@@ -121,4 +121,29 @@ public class UserController {
     public ApiResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         return userService.uploadAvatar(file);
     }
+
+
+    // Lấy hồ sơ của TÔI
+    @GetMapping("/my-profile")
+    public ApiResponse<Object> getMyProfile() {
+        return userService.getMyProfile();
+    }
+
+    // Cập nhật hồ sơ học sinh của TÔI
+    @PutMapping(value = "/my-profile/student", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<StudentResponse> updateMyStudentProfile(
+            @RequestPart("data") @Valid StudentUpdateRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.updateMyStudentProfile(request, avatar);
+    }
+
+    @PostMapping("/my-profile/change-password/init")
+    public ApiResponse<String> initChangePassword(@Valid @RequestBody ChangePasswordInitRequest request) {
+        return userService.initChangePassword(request);
+    }
+
+    @PostMapping("/my-profile/change-password/confirm")
+    public ApiResponse<String> confirmChangePassword(@Valid @RequestBody ChangePasswordConfirmRequest request) {
+        return userService.confirmChangePassword(request);
+    }
 }
