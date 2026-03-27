@@ -17,36 +17,38 @@ import java.util.List;
 public class Question {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "QuestionID")
-    Integer questionID;
+    @Column(name = "id")
+    Integer id;
+
+    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
+    String questionText;
+
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    String imageUrl;
+
+    @Column(name = "explanation", columnDefinition = "TEXT")
+    String explanation;
+
+    @Column(name = "difficulty_level", nullable = false)
+    Integer difficultyLevel;
+
+    @Column(name = "embedding", columnDefinition = "TEXT")
+    String embedding;
 
     @ManyToOne
-    @JoinColumn(name = "SubjectID", nullable = false)
-    Subject subject;
+    @JoinColumn(name = "bank_id")
+    QuestionBank bank;
 
-    @Column(name = "Chapter", nullable = false)
-    String chapter;
+    @Column(name = "is_ai", nullable = false)
+    Boolean isAi = false;
 
-    @Column(name = "Level")
-    String level; // EASY, MEDIUM, HARD
-
-    @Column(name = "Tags")
-    String tags;
-
-    @Column(name = "Content", nullable = false, columnDefinition = "TEXT")
-    String content;
-
-    @Column(name = "Options", columnDefinition = "json")
-    String options;
-
-    @Column(name = "CorrectAnswer", nullable = false)
-    String correctAnswer;
-
+    @Builder.Default
     @ManyToMany(mappedBy = "questions")
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     List<Assignment> assignments = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

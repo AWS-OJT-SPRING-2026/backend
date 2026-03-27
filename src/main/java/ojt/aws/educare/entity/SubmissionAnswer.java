@@ -12,20 +12,24 @@ import lombok.*;
 public class SubmissionAnswer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "AnswerID")
+    @Column(name = "answerid")
     Integer answerID;
 
     @ManyToOne
-    @JoinColumn(name = "SubmissionID", nullable = false)
+    @JoinColumn(name = "submissionid")
     Submission submission;
 
     @ManyToOne
-    @JoinColumn(name = "QuestionID", nullable = false)
+    @JoinColumn(name = "questionid")
     Question question;
 
-    @Column(name = "SelectedAnswer")
+    @ManyToOne
+    @JoinColumn(name = "answer_ref_id")
+    Answer answerRef;
+
+    @Column(name = "selected_answer")
     String selectedAnswer;
 
-    @Column(name = "IsCorrect")
+    @Column(name = "is_correct")
     Boolean isCorrect;
 }

@@ -52,10 +52,10 @@ public class Subject {
     @EqualsAndHashCode.Exclude
     List<Classroom> classrooms = new ArrayList<>();
 
-    @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    List<Question> questions = new ArrayList<>();
+//    @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
+//    @ToString.Exclude
+//    @EqualsAndHashCode.Exclude
+//    List<Question> questions = new ArrayList<>();
 
     @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude

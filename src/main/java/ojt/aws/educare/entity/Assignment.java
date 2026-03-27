@@ -20,47 +20,49 @@ import java.util.List;
 public class Assignment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "AssignmentID")
+    @Column(name = "assignmentid")
     Integer assignmentID;
 
     @ManyToOne
-    @JoinColumn(name = "ClassID", nullable = false)
+    @JoinColumn(name = "classid")
     Classroom classroom;
 
     @ManyToOne
-    @JoinColumn(name = "TeacherID", nullable = false)
-    Teacher teacher;
+    @JoinColumn(name = "userid", nullable = false)
+    User user;
 
-    @Column(name = "Title", nullable = false, length = 255)
+    @Column(name = "title", length = 255)
     String title;
 
-    @Column(name = "Deadline", nullable = false)
+    @Column(name = "deadline")
     LocalDateTime deadline;
 
-    @Column(name = "Type", length = 100)
+    @Column(name = "type", length = 100)
     String type;
 
-    @Column(name = "Status", length = 50)
+    @Column(name = "status", length = 50)
     String status;
 
     @CreationTimestamp
-    @Column(name = "CreatedAt", updatable = false)
+    @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(name = "UpdatedAt")
+    @Column(name = "updated_at")
     LocalDateTime updatedAt;
 
+    @Builder.Default
     @ManyToMany
     @JoinTable(
             name = "assignment_questions",
-            joinColumns = @JoinColumn(name = "AssignmentID"),
-            inverseJoinColumns = @JoinColumn(name = "QuestionID")
+            joinColumns = @JoinColumn(name = "assignmentid"),
+            inverseJoinColumns = @JoinColumn(name = "questionid")
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     List<Question> questions = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "assignment", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

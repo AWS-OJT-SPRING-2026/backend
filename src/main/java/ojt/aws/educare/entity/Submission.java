@@ -20,27 +20,28 @@ import java.util.List;
 public class Submission {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "SubmissionID")
+    @Column(name = "submissionid")
     Integer submissionID;
 
     @ManyToOne
-    @JoinColumn(name = "AssignmentID", nullable = false)
+    @JoinColumn(name = "assignmentid")
     Assignment assignment;
 
     @ManyToOne
-    @JoinColumn(name = "StudentID", nullable = false)
-    Student student;
+    @JoinColumn(name = "userid")
+    User user;
 
-    @Column(name = "Score", precision = 5, scale = 2)
-    BigDecimal score; // Dùng BigDecimal cho số thập phân (decimal) chính xác nhất
+    @Column(name = "score", precision = 5, scale = 2)
+    BigDecimal score;
 
-    @Column(name = "TimeTaken")
-    Integer timeTaken; // Lưu số giây làm bài
+    @Column(name = "time_taken")
+    Integer timeTaken;
 
     @CreationTimestamp
-    @Column(name = "SubmitTime", updatable = false)
+    @Column(name = "submit_time", updatable = false)
     LocalDateTime submitTime;
 
+    @Builder.Default
     @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

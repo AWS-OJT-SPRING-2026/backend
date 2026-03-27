@@ -5,30 +5,29 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "roadmaps")
+@Table(name = "books")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class Roadmap {
+public class Book {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "roadmapid")
-    Integer roadmapID;
+    @Column(name = "id")
+    Integer id;
 
-    @ManyToOne
-    @JoinColumn(name = "studentid")
-    Student student;
-
-    @Column(name = "total_time")
-    Integer totalTime;
+    @Column(name = "book_name", nullable = false, columnDefinition = "TEXT")
+    String bookName;
 
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    LocalDateTime createdAt;
+    @Column(name = "create_at", updatable = false)
+    LocalDateTime createAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subject_id")
+    Subject subject;
 }

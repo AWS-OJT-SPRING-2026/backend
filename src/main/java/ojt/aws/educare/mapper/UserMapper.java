@@ -24,9 +24,9 @@ public interface UserMapper {
 
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "teacherID", ignore = true)
-    @Mapping(target = "classrooms   ", ignore = true)
+    @Mapping(target = "classrooms", ignore = true)
     @Mapping(target = "materials", ignore = true)
-    @Mapping(target = "assignments", ignore = true)
+//    @Mapping(target = "assignments", ignore = true)
     Teacher toTeacher(TeacherCreateRequest request);
 
     User toUser(StudentCreateRequest request);
@@ -34,7 +34,7 @@ public interface UserMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "studentID", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-    @Mapping(target = "submissions", ignore = true)
+//    @Mapping(target = "submissions", ignore = true)
     @Mapping(target = "aiChatHistories", ignore = true)
     @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
@@ -103,13 +103,13 @@ public interface UserMapper {
     @Mapping(target = "teacherID", ignore = true)
     @Mapping(target = "classrooms", ignore = true)
     @Mapping(target = "materials", ignore = true)
-    @Mapping(target = "assignments", ignore = true)
+//    @Mapping(target = "assignments", ignore = true)
     void updateTeacherFromRequest(@MappingTarget Teacher teacher, TeacherUpdateRequest request);
 
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "studentID", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-    @Mapping(target = "submissions", ignore = true)
+//    @Mapping(target = "submissions", ignore = true)
     @Mapping(target = "aiChatHistories", ignore = true)
     @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
