@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,8 +35,9 @@ public class Question {
     @Column(name = "difficulty_level", nullable = false)
     Integer difficultyLevel;
 
-    @Column(name = "embedding", columnDefinition = "TEXT")
-    String embedding;
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    @Column(name = "embedding", columnDefinition = "vector")
+    float[] embedding;
 
     @ManyToOne
     @JoinColumn(name = "bank_id")

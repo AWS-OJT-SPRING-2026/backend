@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "content_blocks")
 @Data
@@ -24,6 +27,7 @@ public class ContentBlock {
     @Column(name = "content", columnDefinition = "TEXT")
     String content;
 
-    @Column(name = "embedding", columnDefinition = "TEXT")
-    String embedding;
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    @Column(name = "embedding", columnDefinition = "vector")
+    float[] embedding;
 }
