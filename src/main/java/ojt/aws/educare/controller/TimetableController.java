@@ -118,4 +118,21 @@ public class TimetableController {
 
         return timetableService.updateMeetLink(timetableId, request);
     }
+
+    //lấy lịch và thống kê cho học sinh
+    @GetMapping("/my-schedule/student")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+        return timetableService.getStudentSchedule(start, end);
+    }
+
+    @GetMapping("/my-schedule/student/stats")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ApiResponse<StudentWeeklyStatsResponse> getStudentScheduleStats(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+        return timetableService.getStudentScheduleStats(start, end);
+    }
 }

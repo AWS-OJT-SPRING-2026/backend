@@ -4,10 +4,7 @@ import ojt.aws.educare.dto.request.TimetableBulkUpdateRequest;
 import ojt.aws.educare.dto.request.TimetableRecurringRequest;
 import ojt.aws.educare.dto.request.TimetableRequest;
 import ojt.aws.educare.dto.request.UpdateMeetLinkRequest;
-import ojt.aws.educare.dto.response.ApiResponse;
-import ojt.aws.educare.dto.response.TeacherScheduleStatsResponse;
-import ojt.aws.educare.dto.response.TimetableResponse;
-import ojt.aws.educare.dto.response.TimetableStatsResponse;
+import ojt.aws.educare.dto.response.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,5 +21,8 @@ public interface TimetableService {
 
     ApiResponse<List<TimetableResponse>> getMyScheduleList(LocalDateTime start, LocalDateTime end);
     ApiResponse<TimetableResponse> updateMeetLink(Integer timetableID, UpdateMeetLinkRequest request);
-    ApiResponse<TeacherScheduleStatsResponse> getMyScheduleStats(LocalDateTime start, LocalDateTime end);;
+    ApiResponse<TeacherScheduleStatsResponse> getMyScheduleStats(LocalDateTime start, LocalDateTime end);
+
+    ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end);
+    ApiResponse<StudentWeeklyStatsResponse> getStudentScheduleStats(LocalDateTime start, LocalDateTime end);
 }

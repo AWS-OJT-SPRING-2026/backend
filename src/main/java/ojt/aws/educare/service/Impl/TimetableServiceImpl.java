@@ -17,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class TimetableServiceImpl implements TimetableService {
     TeacherRepository teacherRepository;
     SubjectRepository subjectRepository;
     UserRepository userRepository;
+    AttendanceRepository attendanceRepository;
 
     TimetableMapper timetableMapper;
 
@@ -307,6 +311,75 @@ public class TimetableServiceImpl implements TimetableService {
         return ApiResponse.success("Lấy thống kê thành công", stats);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end) {
+        validateTimeRange(start, end);
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        List<Timetable> timetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
+        syncStatuses(timetables, LocalDateTime.now());
+
+        // Lấy dữ liệu điểm danh và gom thành Map (Tra cứu siêu tốc)
+        List<Attendance> weeklyAttendances = attendanceRepository.findAllAttendanceByStudentUsernameAndTimeRange(username, start, end);
+        Map<Integer, String> attendanceMap = weeklyAttendances.stream()
+                .collect(Collectors.toMap(
+                        a -> a.getTimetable().getTimetableID(),
+                        Attendance::getStatus,
+                        (existing, replacement) -> existing
+                ));
+
+        List<StudentScheduleResponse> responses = timetableMapper.toStudentScheduleResponseList(timetables, attendanceMap);
+
+        return ApiResponse.success("Lấy lịch học thành công", responses);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<StudentWeeklyStatsResponse> getStudentScheduleStats(LocalDateTime start, LocalDateTime end) {
+        validateTimeRange(start, end);
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Tiết học & Môn học tuần này
+        List<Timetable> weeklyTimetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
+        int totalClasses = weeklyTimetables.size();
+
+        int totalSubjects = (int) weeklyTimetables.stream()
+                .map(t -> t.getClassroom().getSubject().getSubjectID())
+                .distinct()
+                .count();
+
+        // Tính số Giờ học
+        List<Attendance> attendedClasses = attendanceRepository.findAttendedByStudentUsernameAndTimeRange(username, start, end);
+        double totalHours = 0;
+
+        for (Attendance a : attendedClasses) {
+            Timetable t = a.getTimetable();
+            if (t.getStartTime() != null && t.getEndTime() != null) {
+                long minutes = java.time.temporal.ChronoUnit.MINUTES.between(t.getStartTime(), t.getEndTime());
+                totalHours += (double) minutes / 60.0;
+            }
+        }
+
+        totalHours = Math.round(totalHours * 10.0) / 10.0;
+
+        // Trả về Response
+        StudentWeeklyStatsResponse stats = StudentWeeklyStatsResponse.builder()
+                .totalClassesThisWeek(totalClasses)
+                .totalHoursStudied(totalHours)
+                .totalSubjects(totalSubjects)
+                .totalExams(0)
+                .build();
+
+        return ApiResponse.success("Lấy thống kê tuần thành công", stats);
+    }
+
     private Teacher resolveTeacher(Integer teacherID, Classroom classroom) {
         return teacherID == null
                 ? classroom.getTeacher()
@@ -325,7 +398,7 @@ public class TimetableServiceImpl implements TimetableService {
         }
     }
 
-    private void validateTimeRange(java.time.LocalTime start, java.time.LocalTime end) {
+    private void validateTimeRange(LocalTime start, LocalTime end) {
         if (start == null || end == null || !end.isAfter(start)) {
             throw new AppException(ErrorCode.TIMETABLE_TIME_INVALID);
         }

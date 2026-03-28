@@ -32,4 +32,14 @@ public interface TimetableRepository extends JpaRepository<Timetable, Integer> {
             @Param("teacherID") Integer teacherID,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query("SELECT t FROM Timetable t " +
+            "JOIN t.classroom c " +
+            "JOIN c.classMembers cm " +
+            "WHERE cm.student.user.username = :username " +
+            "AND t.startTime >= :start AND t.endTime <= :end")
+    List<Timetable> findTimetablesByStudentUsernameAndTimeRange(
+            @Param("username") String username,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }
