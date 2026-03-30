@@ -3,7 +3,8 @@ package ojt.aws.educare.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-
+import org.hibernate.annotations.CreationTimestamp;
+import java.time.LocalDateTime;
 @Entity
 @Table(name = "question_bank")
 @Data
@@ -27,4 +28,8 @@ public class QuestionBank {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subject_id")
     Subject subject;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    LocalDateTime createdAt;
 }

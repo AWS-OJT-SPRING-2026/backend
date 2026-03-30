@@ -65,10 +65,10 @@ public class Classroom {
     @EqualsAndHashCode.Exclude
     List<ClassMember> classMembers = new ArrayList<>();
 
-    @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    List<Material> materials = new ArrayList<>();
+//    @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
+//    @ToString.Exclude
+//    @EqualsAndHashCode.Exclude
+//    List<Material> materials = new ArrayList<>();
 
     @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude

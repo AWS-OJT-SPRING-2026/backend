@@ -3,6 +3,7 @@ package ojt.aws.educare.service;
 import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.dto.request.ClassroomUpdateRequest;
 import ojt.aws.educare.dto.response.*;
+import ojt.aws.educare.dto.response.TeacherClassroomOptionResponse;
 
 import java.util.List;
 
@@ -17,4 +18,5 @@ public interface ClassroomService {
     ApiResponse<ClassroomDetailResponse> getClassroomByID(Integer classID);
     ApiResponse<ClassroomResponse> updateClassroom(Integer classID, ClassroomUpdateRequest request);
     ApiResponse<Void> toggleClassroomStatus(Integer classID);
+    ApiResponse<List<TeacherClassroomOptionResponse>> getMyClassroomOptions();
 }

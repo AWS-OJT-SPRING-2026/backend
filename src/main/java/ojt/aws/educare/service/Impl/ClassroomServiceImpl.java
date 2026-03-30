@@ -6,6 +6,7 @@ import lombok.experimental.FieldDefaults;
 import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.dto.request.ClassroomUpdateRequest;
 import ojt.aws.educare.dto.response.*;
+import ojt.aws.educare.dto.response.TeacherClassroomOptionResponse;
 import ojt.aws.educare.entity.*;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
@@ -13,6 +14,7 @@ import ojt.aws.educare.mapper.ClassMemberMapper;
 import ojt.aws.educare.mapper.ClassroomMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.ClassroomService;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +32,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     SubjectRepository subjectRepository;
     TeacherRepository teacherRepository;
     StudentRepository studentRepository;
+    UserRepository userRepository;
 
     ClassroomMapper classroomMapper;
     ClassMemberMapper classMemberMapper;
@@ -243,5 +246,21 @@ public class ClassroomServiceImpl implements  ClassroomService {
 
         String message = isActive ? "Đã khóa (tạm dừng) lớp học thành công" : "Đã mở lại lớp học thành công";
         return ApiResponse.success(message, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<List<TeacherClassroomOptionResponse>> getMyClassroomOptions() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        Teacher teacher = teacherRepository.findByUser(currentUser)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_IS_NOT_TEACHER));
+
+        List<Classroom> classrooms = classroomRepository.findByTeacher_TeacherIDOrderByClassNameAsc(teacher.getTeacherID());
+        List<TeacherClassroomOptionResponse> options = classroomMapper.toTeacherClassroomOptionResponseList(classrooms);
+
+        return ApiResponse.success("Lấy danh sách lớp học của giáo viên thành công", options);
     }
 }

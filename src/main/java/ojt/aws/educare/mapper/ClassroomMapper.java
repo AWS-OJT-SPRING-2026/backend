@@ -4,6 +4,7 @@ import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.dto.request.ClassroomUpdateRequest;
 import ojt.aws.educare.dto.response.ClassroomDetailResponse;
 import ojt.aws.educare.dto.response.ClassroomResponse;
+import ojt.aws.educare.dto.response.TeacherClassroomOptionResponse;
 import ojt.aws.educare.entity.ClassMember;
 import ojt.aws.educare.entity.Classroom;
 import org.mapstruct.Mapper;
@@ -19,7 +20,7 @@ public interface ClassroomMapper {
     @Mapping(target = "subject", ignore = true)
     @Mapping(target = "teacher", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-    @Mapping(target = "materials", ignore = true)
+//    @Mapping(target = "materials", ignore = true)
     @Mapping(target = "assignments", ignore = true)
     @Mapping(target = "timetables", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
@@ -32,6 +33,12 @@ public interface ClassroomMapper {
     ClassroomResponse toClassroomResponse(Classroom classroom);
 
     List<ClassroomResponse> toClassroomResponseList(List<Classroom> classrooms);
+
+    @Mapping(target = "subjectID", source = "subject.subjectID")
+    @Mapping(target = "subjectName", source = "subject.subjectName")
+    TeacherClassroomOptionResponse toTeacherClassroomOptionResponse(Classroom classroom);
+
+    List<TeacherClassroomOptionResponse> toTeacherClassroomOptionResponseList(List<Classroom> classrooms);
 
     @Mapping(target = "subjectID", source = "subject.subjectID")
     @Mapping(target = "subjectName", source = "subject.subjectName")
@@ -53,7 +60,7 @@ public interface ClassroomMapper {
     @Mapping(target = "subject", ignore = true)
     @Mapping(target = "teacher", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-    @Mapping(target = "materials", ignore = true)
+//    @Mapping(target = "materials", ignore = true)
     @Mapping(target = "assignments", ignore = true)
     @Mapping(target = "timetables", ignore = true)
     @Mapping(target = "createdAt", ignore = true)

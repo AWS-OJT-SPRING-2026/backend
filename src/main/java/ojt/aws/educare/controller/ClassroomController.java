@@ -7,6 +7,7 @@ import lombok.experimental.FieldDefaults;
 import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.dto.request.ClassroomUpdateRequest;
 import ojt.aws.educare.dto.response.*;
+import ojt.aws.educare.dto.response.TeacherClassroomOptionResponse;
 import ojt.aws.educare.service.ClassroomService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -92,5 +93,11 @@ public class ClassroomController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> toggleClassroomStatus(@PathVariable Integer classId) {
         return classroomService.toggleClassroomStatus(classId);
+    }
+
+    @GetMapping("/teacher/me/options")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ApiResponse<List<TeacherClassroomOptionResponse>> getMyClassroomOptions() {
+        return classroomService.getMyClassroomOptions();
     }
 }
