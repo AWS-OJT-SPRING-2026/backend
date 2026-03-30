@@ -22,8 +22,9 @@ public class ClassroomMaterial {
     @JoinColumn(name = "class_id")
     Classroom classroom; // Nối với lớp học (VD: 10A1)
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type")
-    String type; // Lưu chữ "THEORY" (Lý thuyết) hoặc "QUESTION" (Câu hỏi)
+    MaterialType  type; // Lưu chữ "THEORY" (Lý thuyết) hoặc "QUESTION" (Câu hỏi)
 
     // NẾU LÀ LÝ THUYẾT THÌ LƯU VÀO ĐÂY (Để null nếu là câu hỏi)
     @ManyToOne(fetch = FetchType.LAZY)

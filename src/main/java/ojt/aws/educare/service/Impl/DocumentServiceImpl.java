@@ -30,7 +30,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public ApiResponse<Void> updateDistributions(Integer documentId, DocumentDistributionUpdateRequest request) {
-        String normalizedType = normalizeType(request.getType());
+        MaterialType normalizedType = normalizeType(request.getType());
         User currentUser = getCurrentUser();
 
         List<ClassroomMaterial> currentMaterials = getCurrentMaterials(documentId, normalizedType);
@@ -74,7 +74,7 @@ public class DocumentServiceImpl implements DocumentService {
                         .assignedBy(currentUser)
                         .build();
 
-                if ("THEORY".equals(normalizedType)) {
+                if (normalizedType == MaterialType.THEORY) {
                     Book book = bookRepository.findById(documentId)
                             .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
                     material.setBook(book);
@@ -95,8 +95,8 @@ public class DocumentServiceImpl implements DocumentService {
         return ApiResponse.success("Cập nhật phân phối tài liệu thành công", null);
     }
 
-    private List<ClassroomMaterial> getCurrentMaterials(Integer documentId, String normalizedType) {
-        if ("THEORY".equals(normalizedType)) {
+    private List<ClassroomMaterial> getCurrentMaterials(Integer documentId, MaterialType normalizedType) {
+        if (normalizedType == MaterialType.THEORY) {
             if (!bookRepository.existsById(documentId)) {
                 throw new AppException(ErrorCode.DOCUMENT_NOT_FOUND);
             }
@@ -109,17 +109,17 @@ public class DocumentServiceImpl implements DocumentService {
         return classroomMaterialRepository.findByQuestionBank_IdAndType(documentId, normalizedType);
     }
 
-    private String normalizeType(String type) {
+    private MaterialType normalizeType(String type) {
         if (type == null) {
             throw new AppException(ErrorCode.DOCUMENT_TYPE_INVALID);
         }
 
         String normalized = type.trim().toUpperCase(Locale.ROOT);
-        if (!"THEORY".equals(normalized) && !"QUESTION".equals(normalized)) {
-            throw new AppException(ErrorCode.DOCUMENT_TYPE_INVALID);
-        }
-
-        return normalized;
+        return switch (normalized) {
+            case "THEORY" -> MaterialType.THEORY;
+            case "QUESTION" -> MaterialType.QUESTION;
+            default -> throw new AppException(ErrorCode.DOCUMENT_TYPE_INVALID);
+        };
     }
 
     private User getCurrentUser() {

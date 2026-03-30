@@ -1,6 +1,5 @@
 package ojt.aws.educare.mapper;
 
-import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.entity.ClassMember;
 import ojt.aws.educare.entity.ClassMemberID;
 import ojt.aws.educare.entity.Classroom;

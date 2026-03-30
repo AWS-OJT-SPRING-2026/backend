@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "subsections")
 @Data
@@ -26,4 +29,11 @@ public class Subsection {
 
     @Column(name = "subsection_title", columnDefinition = "TEXT")
     String subsectionTitle;
+
+    @OneToMany(mappedBy = "subsection", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @Builder.Default
+    List<ContentBlock> contentBlocks = new ArrayList<>();
 }

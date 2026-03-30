@@ -91,7 +91,8 @@ public enum ErrorCode {
 
     DOCUMENT_TYPE_INVALID(1072, "Loại tài liệu không hợp lệ", HttpStatus.BAD_REQUEST),
     DOCUMENT_NOT_FOUND(1073, "Không tìm thấy tài liệu", HttpStatus.NOT_FOUND),
-    NO_PERMISSION_DISTRIBUTE_DOCUMENT(1074, "Bạn không có quyền phân phối tài liệu cho lớp này", HttpStatus.FORBIDDEN),;
+    NO_PERMISSION_DISTRIBUTE_DOCUMENT(1074, "Bạn không có quyền phân phối tài liệu cho lớp này", HttpStatus.FORBIDDEN),
+    STUDENT_MATERIAL_ACCESS_DENIED(1075, "Bạn không có quyền xem tài liệu này", HttpStatus.FORBIDDEN);
 
     private int code;
     private String message;

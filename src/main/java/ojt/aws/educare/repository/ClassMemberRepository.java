@@ -18,6 +18,8 @@ public interface ClassMemberRepository extends JpaRepository<ClassMember, ClassM
 
     List<ClassMember> findByClassroomClassID(Integer classID);
 
+    List<ClassMember> findByStudent_StudentID(Integer studentID);
+
     @Modifying
     @Query("DELETE FROM ClassMember cm WHERE cm.classMemberID.classID = :classID AND cm.classMemberID.studentID IN :studentIDs")
     void deleteByClassIDAndStudentIDIn(@Param("classID") Integer classID, @Param("studentIDs") List<Integer> studentIDs);
