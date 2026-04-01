@@ -92,7 +92,31 @@ public enum ErrorCode {
     DOCUMENT_TYPE_INVALID(1072, "Loại tài liệu không hợp lệ", HttpStatus.BAD_REQUEST),
     DOCUMENT_NOT_FOUND(1073, "Không tìm thấy tài liệu", HttpStatus.NOT_FOUND),
     NO_PERMISSION_DISTRIBUTE_DOCUMENT(1074, "Bạn không có quyền phân phối tài liệu cho lớp này", HttpStatus.FORBIDDEN),
-    STUDENT_MATERIAL_ACCESS_DENIED(1075, "Bạn không có quyền xem tài liệu này", HttpStatus.FORBIDDEN);
+    STUDENT_MATERIAL_ACCESS_DENIED(1075, "Bạn không có quyền xem tài liệu này", HttpStatus.FORBIDDEN),
+
+    // ASSIGNMENT ERRORS
+    ASSIGNMENT_NOT_FOUND(1400, "Không tìm thấy đề kiểm tra", HttpStatus.NOT_FOUND),
+    QUESTION_NOT_FOUND(1401, "Không tìm thấy câu hỏi", HttpStatus.NOT_FOUND),
+    FORBIDDEN(1403, "Bạn không có quyền thực hiện thao tác này", HttpStatus.FORBIDDEN),
+    ASSIGNMENT_ALREADY_PUBLISHED(1404, "Đề kiểm tra đã phát hành, không thể chỉnh sửa", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_HAS_NO_QUESTIONS(1405, "Đề kiểm tra chưa có câu hỏi", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DEADLINE_PASSED(1406, "Deadline đã qua", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_ACTIVE_ASSIGNMENT(1407, "Không thể xóa đề đang hoạt động", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_NOT_ACTIVE(1408, "Đề kiểm tra chưa được phát hành hoặc đã đóng", HttpStatus.BAD_REQUEST),
+    ALREADY_SUBMITTED(1409, "Bạn đã nộp bài cho đề kiểm tra này", HttpStatus.BAD_REQUEST),
+    QUESTION_BANK_NOT_FOUND(1410, "Không tìm thấy ngân hàng câu hỏi", HttpStatus.NOT_FOUND),
+    ASSIGNMENT_TYPE_INVALID(1411, "Loại bài không hợp lệ. Chỉ chấp nhận TEST hoặc ASSIGNMENT", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_FORMAT_INVALID(1412, "Hình thức không hợp lệ. Chỉ chấp nhận MULTIPLE_CHOICE hoặc ESSAY", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_TEST_TIME_REQUIRED(1413, "Bài kiểm tra yêu cầu startTime và endTime", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_TEST_TIME_INVALID(1414, "endTime phải sau startTime", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DEADLINE_REQUIRED(1415, "Bài tập yêu cầu deadline", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DURATION_REQUIRED(1416, "Bài kiểm tra/bài tập yêu cầu thời gian làm bài", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DURATION_INVALID(1417, "Thời gian làm bài phải lớn hơn 0", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DEADLINE_INVALID(1418, "Deadline phải ở tương lai", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_TEST_NOT_STARTED(1419, "Bài kiểm tra chưa đến thời gian bắt đầu", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_TEST_ENDED(1420, "Bài kiểm tra đã kết thúc", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_ATTEMPT_NOT_STARTED(1421, "Bạn chưa bắt đầu làm bài", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_ATTEMPT_EXPIRED(1422, "Đã hết thời gian làm bài", HttpStatus.BAD_REQUEST);
 
     private int code;
     private String message;

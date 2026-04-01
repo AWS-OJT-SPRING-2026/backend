@@ -2,15 +2,24 @@ CREATE TABLE assignments (
     assignmentid SERIAL PRIMARY KEY,
     classid INTEGER,
     userid INTEGER,
+    teacherid INTEGER,
     title VARCHAR(255),
-    type VARCHAR(100),
+    assignment_type VARCHAR(50),
+    format VARCHAR(50),
+    start_time TIMESTAMP(6),
+    end_time TIMESTAMP(6),
+    deadline TIMESTAMP(6),
+    duration_minutes INTEGER,
     status VARCHAR(50),
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
-    deadline TIMESTAMP(6),
 
     FOREIGN KEY (userid)
         REFERENCES users(userid)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (teacherid)
+        REFERENCES teachers(teacherid)
         ON DELETE CASCADE
 );
 
@@ -35,7 +44,9 @@ CREATE TABLE submissions (
     userid INTEGER,
     score NUMERIC(5,2),
     time_taken INTEGER,
-    submit_time TIMESTAMP(6),
+    started_at TIMESTAMP(6),
+    submitted_at TIMESTAMP(6),
+    expired_at TIMESTAMP(6),
 
     FOREIGN KEY (assignmentid)
         REFERENCES assignments(assignmentid)

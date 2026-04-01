@@ -3,7 +3,6 @@ package ojt.aws.educare.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,9 +36,14 @@ public class Submission {
     @Column(name = "time_taken")
     Integer timeTaken;
 
-    @CreationTimestamp
-    @Column(name = "submit_time", updatable = false)
-    LocalDateTime submitTime;
+    @Column(name = "started_at")
+    LocalDateTime startedAt;
+
+    @Column(name = "submitted_at")
+    LocalDateTime submittedAt;
+
+    @Column(name = "expired_at")
+    LocalDateTime expiredAt;
 
     @Builder.Default
     @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true)

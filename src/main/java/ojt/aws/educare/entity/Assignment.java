@@ -31,14 +31,30 @@ public class Assignment {
     @JoinColumn(name = "userid", nullable = false)
     User user;
 
+    @ManyToOne
+    @JoinColumn(name = "teacherid", nullable = false)
+    Teacher teacher;
+
     @Column(name = "title", length = 255)
     String title;
+
+    @Column(name = "assignment_type", length = 50)
+    String assignmentType;
+
+    @Column(name = "format", length = 50)
+    String format;
+
+    @Column(name = "start_time")
+    LocalDateTime startTime;
+
+    @Column(name = "end_time")
+    LocalDateTime endTime;
 
     @Column(name = "deadline")
     LocalDateTime deadline;
 
-    @Column(name = "type", length = 100)
-    String type;
+    @Column(name = "duration_minutes")
+    Integer durationMinutes;
 
     @Column(name = "status", length = 50)
     String status;
