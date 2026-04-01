@@ -3,8 +3,6 @@ package ojt.aws.educare.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "content_blocks")
@@ -26,7 +24,11 @@ public class ContentBlock {
     @Column(name = "content", columnDefinition = "TEXT")
     String content;
 
-    @JdbcTypeCode(SqlTypes.VECTOR)
-    @Column(name = "embedding", columnDefinition = "vector")
+    // Keep this field for app-level model compatibility, but skip JPA mapping
+    // to avoid pgvector deserialization issues in this Spring Boot service.
+    // Previous mapping (kept as note):
+    // @JdbcTypeCode(SqlTypes.VECTOR)
+    // @Column(name = "embedding", columnDefinition = "vector")
+    @Transient
     float[] embedding;
 }

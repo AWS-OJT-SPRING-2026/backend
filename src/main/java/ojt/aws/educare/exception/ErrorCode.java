@@ -116,7 +116,10 @@ public enum ErrorCode {
     ASSIGNMENT_TEST_NOT_STARTED(1419, "Bài kiểm tra chưa đến thời gian bắt đầu", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_TEST_ENDED(1420, "Bài kiểm tra đã kết thúc", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_ATTEMPT_NOT_STARTED(1421, "Bạn chưa bắt đầu làm bài", HttpStatus.BAD_REQUEST),
-    ASSIGNMENT_ATTEMPT_EXPIRED(1422, "Đã hết thời gian làm bài", HttpStatus.BAD_REQUEST);
+    ASSIGNMENT_ATTEMPT_EXPIRED(1422, "Đã hết thời gian làm bài", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_RESULT_NOT_FOUND(1423, "Bạn chưa nộp bài cho đề kiểm tra này", HttpStatus.NOT_FOUND),
+    ASSIGNMENT_QUESTION_NOT_FOUND(1424, "Câu hỏi không thuộc đề kiểm tra", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION(1425, "Đáp án không thuộc câu hỏi", HttpStatus.BAD_REQUEST);
 
     private int code;
     private String message;

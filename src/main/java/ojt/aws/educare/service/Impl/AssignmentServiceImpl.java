@@ -12,6 +12,7 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.AssignmentMapper;
 import ojt.aws.educare.mapper.QuestionMapper;
+import ojt.aws.educare.mapper.SubmissionMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.AssignmentService;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -46,6 +47,29 @@ public class AssignmentServiceImpl implements AssignmentService {
     UserRepository userRepository;
     AssignmentMapper assignmentMapper;
     QuestionMapper questionMapper;
+    SubmissionMapper submissionMapper;
+
+    private List<SubmissionResponse.SubmissionAnswerDetail> buildSubmissionAnswerDetails(List<SubmissionAnswer> answers) {
+        return answers.stream().map(submissionMapper::toSubmissionAnswerDetail).toList();
+    }
+
+    private SubmissionResponse buildSubmissionResponse(Submission submission, List<SubmissionAnswer> answers) {
+        return submissionMapper.toSubmissionResponse(submission, buildSubmissionAnswerDetails(answers));
+    }
+
+    private Map<Integer, Answer> mapCorrectAnswersByQuestionIds(List<Integer> questionIds) {
+        if (questionIds == null || questionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return answerRepository.findByQuestion_IdIn(questionIds).stream()
+                .filter(a -> Boolean.TRUE.equals(a.getIsCorrect()))
+                .collect(java.util.stream.Collectors.toMap(
+                        a -> a.getQuestion().getId(),
+                        a -> a,
+                        (existing, ignored) -> existing
+                ));
+    }
 
     private User getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -610,14 +634,14 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional
-    public ApiResponse<SubmissionResponse> submitAssignment(SubmitAssignmentRequest request) {
+    public ApiResponse<SubmissionResponse> submitAssignment(Integer assignmentId, SubmitAssignmentRequest request) {
         User currentUser = getCurrentUser();
 
-        Assignment assignment = assignmentRepository.findById(request.getAssignmentId())
+        Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_NOT_FOUND));
 
         Submission submission = submissionRepository
-                .findByAssignment_AssignmentIDAndUser_UserID(request.getAssignmentId(), currentUser.getUserID())
+                .findWithLockByAssignment_AssignmentIDAndUser_UserID(assignmentId, currentUser.getUserID())
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_ATTEMPT_NOT_STARTED));
 
         if (submission.getSubmittedAt() != null) {
@@ -625,24 +649,51 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        if (submission.getExpiredAt() != null && now.isAfter(submission.getExpiredAt())) {
+        if (submission.getExpiredAt() != null && now.isAfter(submission.getExpiredAt().plusSeconds(5))) {
             throw new AppException(ErrorCode.ASSIGNMENT_ATTEMPT_EXPIRED);
         }
 
+        List<Integer> assignmentQuestionIds = assignmentRepository.findQuestionIdsByAssignmentId(assignmentId);
+        Set<Integer> assignmentQuestionSet = new LinkedHashSet<>(assignmentQuestionIds);
+
+        Map<Integer, SubmitAssignmentRequest.AnswerItem> answerByQuestionId = new LinkedHashMap<>();
+        for (SubmitAssignmentRequest.AnswerItem item : request.getAnswers()) {
+            if (!assignmentQuestionSet.contains(item.getQuestionId())) {
+                throw new AppException(ErrorCode.ASSIGNMENT_QUESTION_NOT_FOUND);
+            }
+            answerByQuestionId.put(item.getQuestionId(), item);
+        }
+
         int correctCount = 0;
-        int totalCount = request.getAnswers().size();
+        int totalCount = assignmentQuestionSet.size();
         List<SubmissionAnswer> submissionAnswers = new ArrayList<>();
 
-        for (SubmitAssignmentRequest.AnswerItem item : request.getAnswers()) {
-            Question question = questionRepository.findById(item.getQuestionId())
-                    .orElseThrow(() -> new AppException(ErrorCode.QUESTION_NOT_FOUND));
+        for (Integer questionId : assignmentQuestionSet) {
+            SubmitAssignmentRequest.AnswerItem item = answerByQuestionId.get(questionId);
+            if (item == null) {
+                continue;
+            }
+
+            // Do not persist a blank row for unanswered questions.
+            if (item.getAnswerRefId() == null
+                    && (item.getSelectedAnswer() == null || item.getSelectedAnswer().isBlank())) {
+                continue;
+            }
+
+            Question question = questionRepository.getReferenceById(questionId);
 
             Answer answerRef = null;
             boolean isCorrect = false;
+            String selectedAnswer = item.getSelectedAnswer();
 
             if (item.getAnswerRefId() != null) {
-                answerRef = answerRepository.findById(item.getAnswerRefId()).orElse(null);
-                if (answerRef != null && Boolean.TRUE.equals(answerRef.getIsCorrect())) {
+                answerRef = answerRepository.findById(item.getAnswerRefId())
+                        .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION));
+                if (!answerRef.getQuestion().getId().equals(questionId)) {
+                    throw new AppException(ErrorCode.ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION);
+                }
+                selectedAnswer = answerRef.getContent();
+                if (Boolean.TRUE.equals(answerRef.getIsCorrect())) {
                     isCorrect = true;
                     correctCount++;
                 }
@@ -652,7 +703,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                     .submission(submission)
                     .question(question)
                     .answerRef(answerRef)
-                    .selectedAnswer(item.getSelectedAnswer())
+                    .selectedAnswer(selectedAnswer)
                     .isCorrect(isCorrect)
                     .build();
             submissionAnswers.add(sa);
@@ -670,30 +721,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         submission.setSubmittedAt(now);
         submissionRepository.save(submission);
 
-        List<SubmissionResponse.SubmissionAnswerDetail> answerDetails = submissionAnswers.stream()
-                .map(sa -> SubmissionResponse.SubmissionAnswerDetail.builder()
-                        .questionId(sa.getQuestion().getId())
-                        .questionText(sa.getQuestion().getQuestionText())
-                        .answerRefId(sa.getAnswerRef() != null ? sa.getAnswerRef().getId() : null)
-                        .selectedAnswer(sa.getSelectedAnswer())
-                        .isCorrect(sa.getIsCorrect())
-                        .build())
-                .toList();
-
-        SubmissionResponse response = SubmissionResponse.builder()
-                .submissionID(submission.getSubmissionID())
-                .assignmentId(assignment.getAssignmentID())
-                .assignmentTitle(assignment.getTitle())
-                .userId(currentUser.getUserID())
-                .studentName(currentUser.getFullName())
-                .score(score)
-                .timeTaken(request.getTimeTaken())
-                .startedAt(submission.getStartedAt())
-                .expiredAt(submission.getExpiredAt())
-                .submittedAt(submission.getSubmittedAt())
-                .submitTime(submission.getSubmittedAt())
-                .answers(answerDetails)
-                .build();
+        SubmissionResponse response = buildSubmissionResponse(submission, submissionAnswers);
 
         return ApiResponse.success("Nộp bài thành công", response);
     }
@@ -710,32 +738,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         List<SubmissionAnswer> answers = submissionAnswerRepository
                 .findBySubmission_SubmissionID(submission.getSubmissionID());
 
-        List<SubmissionResponse.SubmissionAnswerDetail> answerDetails = answers.stream()
-                .map(sa -> SubmissionResponse.SubmissionAnswerDetail.builder()
-                        .questionId(sa.getQuestion().getId())
-                        .questionText(sa.getQuestion().getQuestionText())
-                        .answerRefId(sa.getAnswerRef() != null ? sa.getAnswerRef().getId() : null)
-                        .selectedAnswer(sa.getSelectedAnswer())
-                        .isCorrect(sa.getIsCorrect())
-                        .build())
-                .toList();
-
-        Assignment assignment = submission.getAssignment();
-
-        SubmissionResponse response = SubmissionResponse.builder()
-                .submissionID(submission.getSubmissionID())
-                .assignmentId(assignment.getAssignmentID())
-                .assignmentTitle(assignment.getTitle())
-                .userId(currentUser.getUserID())
-                .studentName(currentUser.getFullName())
-                .score(submission.getScore())
-                .timeTaken(submission.getTimeTaken())
-                .startedAt(submission.getStartedAt())
-                .expiredAt(submission.getExpiredAt())
-                .submittedAt(submission.getSubmittedAt())
-                .submitTime(submission.getSubmittedAt())
-                .answers(answerDetails)
-                .build();
+        SubmissionResponse response = buildSubmissionResponse(submission, answers);
 
         return ApiResponse.success("Lấy bài nộp thành công", response);
     }
@@ -766,42 +769,61 @@ public class AssignmentServiceImpl implements AssignmentService {
     public ApiResponse<List<SubmissionResponse>> getStudentSubmissions() {
         User currentUser = getCurrentUser();
 
-        List<Submission> submissions = submissionRepository.findAll().stream()
-                .filter(s -> s.getUser().getUserID().equals(currentUser.getUserID()))
-                .toList();
+        List<Submission> submissions = submissionRepository.findByUser_UserID(currentUser.getUserID());
 
         List<SubmissionResponse> responses = submissions.stream()
                 .map(s -> {
                     List<SubmissionAnswer> answers = submissionAnswerRepository
                             .findBySubmission_SubmissionID(s.getSubmissionID());
-                    List<SubmissionResponse.SubmissionAnswerDetail> answerDetails = answers.stream()
-                            .map(sa -> SubmissionResponse.SubmissionAnswerDetail.builder()
-                                    .questionId(sa.getQuestion().getId())
-                                    .questionText(sa.getQuestion().getQuestionText())
-                                    .answerRefId(sa.getAnswerRef() != null ? sa.getAnswerRef().getId() : null)
-                                    .selectedAnswer(sa.getSelectedAnswer())
-                                    .isCorrect(sa.getIsCorrect())
-                                    .build())
-                            .toList();
-                    Assignment a = s.getAssignment();
-                    return SubmissionResponse.builder()
-                            .submissionID(s.getSubmissionID())
-                            .assignmentId(a.getAssignmentID())
-                            .assignmentTitle(a.getTitle())
-                            .userId(currentUser.getUserID())
-                            .studentName(currentUser.getFullName())
-                            .score(s.getScore())
-                            .timeTaken(s.getTimeTaken())
-                            .startedAt(s.getStartedAt())
-                            .expiredAt(s.getExpiredAt())
-                            .submittedAt(s.getSubmittedAt())
-                            .submitTime(s.getSubmittedAt())
-                            .answers(answerDetails)
-                            .build();
+                    return buildSubmissionResponse(s, answers);
                 })
                 .toList();
 
         return ApiResponse.success("Lấy danh sách bài đã nộp thành công", responses);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<AssignmentResultResponse> getMyResult(Integer assignmentId) {
+        User currentUser = getCurrentUser();
+
+        assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_NOT_FOUND));
+
+        Submission submission = submissionRepository
+                .findByAssignment_AssignmentIDAndUser_UserID(assignmentId, currentUser.getUserID())
+                .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_RESULT_NOT_FOUND));
+
+        if (submission.getSubmittedAt() == null) {
+            throw new AppException(ErrorCode.ASSIGNMENT_RESULT_NOT_FOUND);
+        }
+
+        List<SubmissionAnswer> answers = submissionAnswerRepository
+                .findBySubmission_SubmissionID(submission.getSubmissionID());
+        List<Integer> assignmentQuestionIds = assignmentRepository.findQuestionIdsByAssignmentId(assignmentId);
+        Map<Integer, Answer> correctAnswerByQuestion = mapCorrectAnswersByQuestionIds(assignmentQuestionIds);
+
+        List<AssignmentResultResponse.QuestionResult> questionResults = answers.stream()
+                .map(sa -> {
+                    Answer correctAnswer = correctAnswerByQuestion.get(sa.getQuestion().getId());
+                    return submissionMapper.toQuestionResult(
+                            sa,
+                            correctAnswer != null ? correctAnswer.getId() : null,
+                            correctAnswer != null ? correctAnswer.getContent() : null
+                    );
+                })
+                .toList();
+
+        int correctCount = (int) answers.stream().filter(sa -> Boolean.TRUE.equals(sa.getIsCorrect())).count();
+
+        AssignmentResultResponse response = submissionMapper.toAssignmentResultResponse(
+                submission,
+                assignmentQuestionIds.size(),
+                correctCount,
+                questionResults
+        );
+
+        return ApiResponse.success("Lấy kết quả bài làm thành công", response);
     }
 
     @Override

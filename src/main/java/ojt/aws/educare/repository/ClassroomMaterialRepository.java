@@ -18,6 +18,10 @@ public interface ClassroomMaterialRepository extends JpaRepository<ClassroomMate
 
     boolean existsByClassroom_ClassIDInAndBook_IdAndType(Collection<Integer> classIds, Integer bookId, MaterialType type);
 
+    default boolean existsTheoryBookForClasses(Collection<Integer> classIds, Integer bookId) {
+        return existsByClassroom_ClassIDInAndBook_IdAndType(classIds, bookId, MaterialType.THEORY);
+    }
+
     @Query("""
             SELECT new ojt.aws.educare.dto.response.StudentTheorySubjectOverviewResponse(
                 s.subjectID,

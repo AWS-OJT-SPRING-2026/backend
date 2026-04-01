@@ -21,7 +21,8 @@ public interface AssignmentService {
     ApiResponse<List<AssignmentResponse>> getStudentActiveAssignments();
     ApiResponse<List<SubmissionResponse>> getStudentSubmissions();
     ApiResponse<AssignmentAttemptResponse> startAssignment(Integer assignmentId);
-    ApiResponse<SubmissionResponse> submitAssignment(SubmitAssignmentRequest request);
+    ApiResponse<SubmissionResponse> submitAssignment(Integer assignmentId, SubmitAssignmentRequest request);
     ApiResponse<SubmissionResponse> getMySubmission(Integer assignmentId);
+    ApiResponse<AssignmentResultResponse> getMyResult(Integer assignmentId);
     ApiResponse<List<QuestionBankResponse>> getMyQuestionBanks();
 }

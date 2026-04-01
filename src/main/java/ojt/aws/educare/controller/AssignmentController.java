@@ -117,16 +117,23 @@ public class AssignmentController {
         return assignmentService.startAssignment(id);
     }
 
-    @PostMapping("/submit")
+    @PostMapping("/{id}/submit")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<SubmissionResponse> submitAssignment(
+            @PathVariable Integer id,
             @RequestBody @Valid SubmitAssignmentRequest request) {
-        return assignmentService.submitAssignment(request);
+        return assignmentService.submitAssignment(id, request);
     }
 
     @GetMapping("/{id}/my-submission")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<SubmissionResponse> getMySubmission(@PathVariable Integer id) {
         return assignmentService.getMySubmission(id);
+    }
+
+    @GetMapping("/{id}/results")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ApiResponse<AssignmentResultResponse> getMyResult(@PathVariable Integer id) {
+        return assignmentService.getMyResult(id);
     }
 }
