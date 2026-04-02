@@ -15,6 +15,14 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Integer>
     Optional<Attendance> findByTimetable_TimetableIDAndStudent_StudentID(Integer timetableID, Integer studentID);
     List<Attendance> findByTimetable_TimetableID(Integer timetableID);
 
+    List<Attendance> findByTimetable_Classroom_ClassID(Integer classId);
+
+    @Query("SELECT a FROM Attendance a JOIN a.timetable t WHERE t.classroom.classID = :classId AND a.updatedAt >= :start AND a.updatedAt <= :end")
+    List<Attendance> findByClassIdAndUpdatedAtBetween(
+            @Param("classId") Integer classId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     @Query("SELECT a FROM Attendance a " +
             "JOIN a.timetable t " +
             "WHERE a.student.user.username = :username " +

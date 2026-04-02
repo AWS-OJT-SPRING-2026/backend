@@ -119,7 +119,13 @@ public enum ErrorCode {
     ASSIGNMENT_ATTEMPT_EXPIRED(1422, "Đã hết thời gian làm bài", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_RESULT_NOT_FOUND(1423, "Bạn chưa nộp bài cho đề kiểm tra này", HttpStatus.NOT_FOUND),
     ASSIGNMENT_QUESTION_NOT_FOUND(1424, "Câu hỏi không thuộc đề kiểm tra", HttpStatus.BAD_REQUEST),
-    ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION(1425, "Đáp án không thuộc câu hỏi", HttpStatus.BAD_REQUEST);
+    ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION(1425, "Đáp án không thuộc câu hỏi", HttpStatus.BAD_REQUEST),
+
+    // EXPORT REPORT ERRORS
+    EXPORT_FORMAT_INVALID(1500, "Định dạng xuất không hợp lệ. Chỉ chấp nhận EXCEL, PDF, hoặc CSV", HttpStatus.BAD_REQUEST),
+    EXPORT_DATA_TYPE_INVALID(1501, "Loại dữ liệu xuất không hợp lệ. Chỉ chấp nhận GRADEBOOK, ATTENDANCE, hoặc PROGRESS", HttpStatus.BAD_REQUEST),
+    EXPORT_TIME_RANGE_INVALID(1502, "Khoảng thời gian không hợp lệ. Chỉ chấp nhận THIS_WEEK, THIS_MONTH, hoặc CURRENT_SEMESTER", HttpStatus.BAD_REQUEST),
+    EXPORT_DATA_TYPES_REQUIRED(1503, "Vui lòng chọn ít nhất một loại dữ liệu để xuất", HttpStatus.BAD_REQUEST);
 
     private int code;
     private String message;

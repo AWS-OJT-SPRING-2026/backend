@@ -51,8 +51,11 @@ public interface ClassroomMapper {
     @Mapping(target = "studentID", source = "student.studentID")
     @Mapping(target = "fullName", source = "student.fullName")
     @Mapping(target = "gender", source = "student.gender")
+    @Mapping(target = "dateOfBirth", source = "student.dateOfBirth")
+    @Mapping(target = "address", source = "student.address")
     @Mapping(target = "email", source = "student.user.email")
     @Mapping(target = "phone", source = "student.user.phone")
+    @Mapping(target = "avatarUrl", source = "student.user.avatarUrl")
     @Mapping(target = "memberStatus", source = "status")
     ClassroomDetailResponse.StudentInClassResponse toStudentInClassResponse(ClassMember classMember);
 

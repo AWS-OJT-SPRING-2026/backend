@@ -18,6 +18,8 @@ public interface ClassMemberRepository extends JpaRepository<ClassMember, ClassM
 
     List<ClassMember> findByClassroomClassID(Integer classID);
 
+    List<ClassMember> findByClassroomClassIDOrderByStudentFullNameAsc(Integer classID);
+
     List<ClassMember> findByStudent_StudentID(Integer studentID);
 
     @Modifying

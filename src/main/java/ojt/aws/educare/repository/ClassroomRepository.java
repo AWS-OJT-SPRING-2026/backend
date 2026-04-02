@@ -2,6 +2,8 @@ package ojt.aws.educare.repository;
 
 import ojt.aws.educare.entity.Classroom;
 import ojt.aws.educare.entity.Teacher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -14,6 +16,7 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Integer> {
     boolean existsByClassNameAndTeacher(String className, Teacher teacher);
     Optional<Classroom> findByClassName(String classname);
     List<Classroom> findByTeacher_TeacherIDOrderByClassNameAsc(Integer teacherID);
+    Page<Classroom> findByTeacher_TeacherID(Integer teacherID, Pageable pageable);
     long countByStatus(String status);
     long countByTeacherIsNull();
 }

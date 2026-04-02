@@ -36,8 +36,11 @@ public class ClassroomDetailResponse {
         Integer studentID;
         String fullName;
         String gender;
+        LocalDate dateOfBirth;
+        String address;
         String email;
         String phone;
+        String avatarUrl;
         String memberStatus;
     }
 }

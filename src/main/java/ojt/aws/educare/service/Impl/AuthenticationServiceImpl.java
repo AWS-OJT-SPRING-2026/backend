@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
@@ -117,6 +118,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         if ("LOCKED".equalsIgnoreCase(user.getStatus())) {
             throw new AppException(ErrorCode.USER_INACTIVE);
         }
+
+        user.setLastActiveAt(LocalDateTime.now());
+        userRepository.save(user);
 
         var token = generateToken(user);
 
