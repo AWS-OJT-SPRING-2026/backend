@@ -329,7 +329,7 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
-        emailService.sendOtpEmail(user.getEmail(), otpCode, user.getFullName());
+        emailService.sendForgotPasswordOtpEmail(user.getEmail(), otpCode, user.getFullName());
         return ApiResponse.success("Mã OTP đã được gửi đến email của bạn", null);
     }
 
@@ -485,7 +485,7 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         passwordResetTokenRepository.save(resetToken);
-        emailService.sendOtpEmail(user.getEmail(), otpCode, user.getFullName());
+        emailService.sendChangePasswordOtpEmail(user.getEmail(), otpCode, user.getFullName());
 
         return ApiResponse.success("Mã OTP đã được gửi đến email của bạn", null);
     }

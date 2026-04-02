@@ -1,5 +1,7 @@
 package ojt.aws.educare.service;
 
 public interface EmailService {
-    void sendOtpEmail(String toEmail, String otpCode, String fullName);
+    void sendForgotPasswordOtpEmail(String toEmail, String otpCode, String fullName);
+
+    void sendChangePasswordOtpEmail(String toEmail, String otpCode, String fullName);
 }
