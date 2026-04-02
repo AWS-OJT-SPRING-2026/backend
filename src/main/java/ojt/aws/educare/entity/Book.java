@@ -33,6 +33,12 @@ public class Book {
     @JoinColumn(name = "subject_id")
     Subject subject;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    User user;
+
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("chapterNumber ASC")
     @ToString.Exclude
