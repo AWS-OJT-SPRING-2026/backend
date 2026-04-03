@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.awt.Color;
@@ -266,6 +267,13 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
         ClassroomDetailResponse response = classroomMapper.toClassroomDetailResponse(classroom);
+        if (response.getStudents() != null) {
+            response.getStudents().forEach(student -> {
+                if (student.getAvatarUrl() != null && !student.getAvatarUrl().isBlank()) {
+                    student.setAvatarUrl(s3UploadService.resolveFileUrl(student.getAvatarUrl()));
+                }
+            });
+        }
         return ApiResponse.success("Lấy thông tin lớp học thành công", response);
     }
 
@@ -540,6 +548,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
             List.of("ALL", "ONLINE", "OFFLINE", "ATTENTION");
 
     private static final int ONLINE_WINDOW_MINUTES = 15;
+    private static final int MISSING_ATTENTION_THRESHOLD = 2;
 
     @Override
     @Transactional(readOnly = true)
@@ -742,21 +751,49 @@ public class ClassroomServiceImpl implements  ClassroomService {
             List<Submission> studentSubmissions = submissionsByUserId.getOrDefault(user.getUserID(), List.of());
 
             Set<Integer> submittedAssignmentIds = studentSubmissions.stream()
+                    .filter(s -> s.getSubmittedAt() != null)
+                    .filter(s -> s.getSubmissionStatus() == null || !"MISSING".equalsIgnoreCase(s.getSubmissionStatus()))
                     .map(s -> s.getAssignment().getAssignmentID())
                     .collect(Collectors.toSet());
+
+            int missingCountFromSubmission = (int) studentSubmissions.stream()
+                    .filter(s -> "MISSING".equalsIgnoreCase(s.getSubmissionStatus()))
+                    .count();
+
+            int inferredMissingCount = (int) assignments.stream()
+                    .filter(a -> {
+                        LocalDateTime due = resolveAssignmentDueTime(a);
+                        if (due == null || LocalDateTime.now().isBefore(due)) {
+                            return false;
+                        }
+                        return studentSubmissions.stream()
+                                .noneMatch(s -> s.getAssignment() != null
+                                        && Objects.equals(s.getAssignment().getAssignmentID(), a.getAssignmentID()));
+                    })
+                    .count();
+
+            int missingCount = missingCountFromSubmission + inferredMissingCount;
 
             double completion = totalAssignments == 0
                     ? 0.0
                     : (submittedAssignmentIds.size() * 100.0) / totalAssignments;
 
-            double gpa = studentSubmissions.stream()
+            double gpaFromSubmissions = studentSubmissions.stream()
                     .filter(s -> s.getScore() != null)
                     .map(Submission::getScore)
                     .mapToDouble(score -> score.doubleValue())
                     .average()
                     .orElse(0.0);
 
-            String status = resolveStudentStatus(user.getLastActiveAt(), completion, gpa);
+            int gradedCount = (int) studentSubmissions.stream().filter(s -> s.getScore() != null).count() + inferredMissingCount;
+            double totalScore = studentSubmissions.stream()
+                    .filter(s -> s.getScore() != null)
+                    .map(Submission::getScore)
+                    .mapToDouble(score -> score.doubleValue())
+                    .sum();
+            double gpa = gradedCount > 0 ? totalScore / gradedCount : gpaFromSubmissions;
+
+            String status = resolveStudentStatus(user.getLastActiveAt(), completion, gpa, missingCount);
 
             return ClassStudentResponse.builder()
                     .studentId(student.getStudentID())
@@ -765,22 +802,33 @@ public class ClassroomServiceImpl implements  ClassroomService {
                     .avatarUrl(s3UploadService.resolveFileUrl(user.getAvatarUrl()))
                     .completionRate(round2(completion))
                     .gpa(round2(gpa))
+                    .missingCount(missingCount)
                     .lastActiveTime(user.getLastActiveAt())
                     .status(status)
                     .build();
         }).toList();
     }
 
-    private String resolveStudentStatus(LocalDateTime lastActiveTime, double completionRate, double gpa) {
+    private String resolveStudentStatus(LocalDateTime lastActiveTime, double completionRate, double gpa, int missingCount) {
         if (lastActiveTime != null && lastActiveTime.isAfter(LocalDateTime.now().minusMinutes(ONLINE_WINDOW_MINUTES))) {
             return "ONLINE";
         }
 
-        if (completionRate < 50 || gpa < 5) {
+        if (completionRate < 50 || gpa < 5 || missingCount >= MISSING_ATTENTION_THRESHOLD) {
             return "ATTENTION";
         }
 
         return "OFFLINE";
+    }
+
+    private LocalDateTime resolveAssignmentDueTime(Assignment assignment) {
+        if (assignment == null) {
+            return null;
+        }
+        if ("TEST".equalsIgnoreCase(assignment.getAssignmentType())) {
+            return assignment.getEndTime();
+        }
+        return assignment.getDeadline();
     }
 
     private String mapDayLabel(Integer dayOfWeek) {
@@ -830,12 +878,13 @@ public class ClassroomServiceImpl implements  ClassroomService {
     private byte[] generateCsv(List<ClassStudentResponse> rows) {
         StringBuilder sb = new StringBuilder();
         sb.append("\uFEFF"); // UTF-8 BOM for Excel Vietnamese support
-        sb.append("MSSV,Ho ten,Hoan thanh,GPA,Trang thai\n");
+        sb.append("ID,Ho ten,Hoan thanh,GPA,Bai bo lo,Trang thai\n");
         for (ClassStudentResponse row : rows) {
             sb.append(formatMssv(row.getMssv())).append(',')
                     .append('"').append(row.getFullName().replace("\"", "''")).append('"').append(',')
                     .append(String.format(Locale.ROOT, "%.2f%%", safeDouble(row.getCompletionRate()))).append(',')
                     .append(String.format(Locale.ROOT, "%.2f", safeDouble(row.getGpa()))).append(',')
+                    .append('"').append(mapMissingLabel(row.getMissingCount())).append('"').append(',')
                     .append(mapStatusVi(row.getStatus()))
                     .append('\n');
         }
@@ -863,7 +912,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
             headerStyle.setFont(headerFont);
 
             Row header = sheet.createRow(3);
-            String[] columns = {"MSSV", "Ho ten", "Hoan thanh", "GPA", "Trang thai"};
+            String[] columns = {"ID", "Họ tên", "Hoàn thành", "GPA", "Bài bỏ lỡ", "Trạng thái"};
             for (int i = 0; i < columns.length; i++) {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(columns[i]);
@@ -877,7 +926,8 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 excelRow.createCell(1).setCellValue(row.getFullName());
                 excelRow.createCell(2).setCellValue(String.format(Locale.ROOT, "%.2f%%", safeDouble(row.getCompletionRate())));
                 excelRow.createCell(3).setCellValue(String.format(Locale.ROOT, "%.2f", safeDouble(row.getGpa())));
-                excelRow.createCell(4).setCellValue(mapStatusVi(row.getStatus()));
+                excelRow.createCell(4).setCellValue(mapMissingLabel(row.getMissingCount()));
+                excelRow.createCell(5).setCellValue(mapStatusVi(row.getStatus()));
             }
 
             for (int i = 0; i < columns.length; i++) {
@@ -918,14 +968,15 @@ public class ClassroomServiceImpl implements  ClassroomService {
             metaTable.setSpacingAfter(10f);
             document.add(metaTable);
 
-            PdfPTable table = new PdfPTable(5);
+            PdfPTable table = new PdfPTable(6);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{1.2f, 2.8f, 1.5f, 1.0f, 1.2f});
+            table.setWidths(new float[]{1.2f, 2.4f, 1.3f, 0.9f, 1.4f, 1.2f});
 
             addTableHeaderCell(table, "MSSV", tableHeaderFont);
             addTableHeaderCell(table, "Họ tên", tableHeaderFont);
             addTableHeaderCell(table, "Hoàn thành", tableHeaderFont);
             addTableHeaderCell(table, "GPA", tableHeaderFont);
+            addTableHeaderCell(table, "Bài bỏ lỡ", tableHeaderFont);
             addTableHeaderCell(table, "Trạng thái", tableHeaderFont);
 
             boolean zebra = false;
@@ -937,6 +988,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 addBodyCell(table, row.getFullName(), bodyFont, rowBg, null);
                 addBodyCell(table, String.format("%.2f%%", safeDouble(row.getCompletionRate())), bodyFont, rowBg, null);
                 addBodyCell(table, String.format("%.2f", safeDouble(row.getGpa())), bodyFont, rowBg, null);
+                addBodyCell(table, mapMissingLabel(row.getMissingCount()), bodyFont, rowBg, null);
                 addBodyCell(table, mapStatusVi(row.getStatus()), bodyFont, rowBg, mapStatusColor(row.getStatus()));
             }
 
@@ -1029,6 +1081,13 @@ public class ClassroomServiceImpl implements  ClassroomService {
             case "OFFLINE" -> "Offline";
             default -> status;
         };
+    }
+
+    private String mapMissingLabel(Integer missingCount) {
+        if (missingCount == null || missingCount <= 0) {
+            return "-";
+        }
+        return "KHÔNG NỘP (" + missingCount + ")";
     }
 
     private BaseFont createUnicodeBaseFont() {

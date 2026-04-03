@@ -75,6 +75,12 @@ public class AssignmentController {
         return assignmentService.getAssignmentReport(id);
     }
 
+    @GetMapping("/submissions/{submissionId}")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ApiResponse<SubmissionResponse> getSubmissionDetailForTeacher(@PathVariable Integer submissionId) {
+        return assignmentService.getSubmissionDetailForTeacher(submissionId);
+    }
+
     @GetMapping("/questions/random")
     @PreAuthorize("hasRole('TEACHER')")
     public ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(

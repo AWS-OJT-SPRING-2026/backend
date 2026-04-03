@@ -3,6 +3,7 @@ package ojt.aws.educare.dto.response;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -27,4 +28,6 @@ public class AssignmentResponse {
     String subjectName;
     Integer totalQuestions;
     Integer totalSubmissions;
+    String submissionStatus;
+    BigDecimal score;
 }

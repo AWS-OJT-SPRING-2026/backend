@@ -16,12 +16,17 @@ public class AssignmentReportResponse {
     Integer assignmentId;
     String title;
     String className;
+    Integer totalStudents;
     Integer totalSubmissions;
+    Double completionRate;
+    Double passRate;
+    List<Integer> scoreDistribution;
     BigDecimal averageScore;
     BigDecimal highestScore;
     BigDecimal lowestScore;
     List<StudentSubmissionSummary> studentResults;
     List<QuestionStatistic> questionStats;
+    List<QuestionAnalysis> questionAnalysis;
 
     @Data
     @Builder
@@ -34,6 +39,8 @@ public class AssignmentReportResponse {
         BigDecimal score;
         Integer timeTaken;
         LocalDateTime submitTime;
+        String submissionStatus;
+        String submissionTimingStatus;
     }
 
     @Data
@@ -47,5 +54,32 @@ public class AssignmentReportResponse {
         Integer correctCount;
         Integer totalAnswered;
         Double accuracyRate;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class QuestionAnalysis {
+        Integer questionId;
+        String questionText;
+        Integer difficultyLevel;
+        Integer correctCount;
+        Integer totalAnswered;
+        Double accuracyRate;
+        List<OptionStatistic> options;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class OptionStatistic {
+        Integer optionId;
+        String optionLabel;
+        String optionContent;
+        Boolean isCorrect;
+        Integer selectedCount;
+        Integer wrongSelectedCount;
     }
 }

@@ -24,6 +24,7 @@ public class SubmissionResponse {
     LocalDateTime expiredAt;
     LocalDateTime submittedAt;
     LocalDateTime submitTime;
+    String submissionStatus;
     List<SubmissionAnswerDetail> answers;
 
     @Data

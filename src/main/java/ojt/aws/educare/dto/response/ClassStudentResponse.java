@@ -17,6 +17,7 @@ public class ClassStudentResponse {
     String avatarUrl;
     Double completionRate;
     Double gpa;
+    Integer missingCount;
     LocalDateTime lastActiveTime;
     String status;
 }

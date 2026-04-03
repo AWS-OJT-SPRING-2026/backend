@@ -23,6 +23,7 @@ public class AssignmentResultResponse {
     Integer correctCount;
     Integer timeTaken;
     LocalDateTime submitTime;
+    String submissionStatus;
     List<QuestionResult> questions;
 
     @Data

@@ -42,6 +42,9 @@ public class Submission {
     @Column(name = "submitted_at")
     LocalDateTime submittedAt;
 
+    @Column(name = "submission_status", length = 20)
+    String submissionStatus;
+
     @Column(name = "expired_at")
     LocalDateTime expiredAt;
 

@@ -16,6 +16,7 @@ import ojt.aws.educare.mapper.SubmissionMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.AssignmentService;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,9 @@ public class AssignmentServiceImpl implements AssignmentService {
     private static final String ASSIGNMENT_TYPE_ASSIGNMENT = "ASSIGNMENT";
     private static final String FORMAT_MULTIPLE_CHOICE = "MULTIPLE_CHOICE";
     private static final String FORMAT_ESSAY = "ESSAY";
+    private static final String SUBMISSION_STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String SUBMISSION_STATUS_SUBMITTED = "SUBMITTED";
+    private static final String SUBMISSION_STATUS_MISSING = "MISSING";
 
     AssignmentRepository assignmentRepository;
     QuestionRepository questionRepository;
@@ -270,6 +274,152 @@ public class AssignmentServiceImpl implements AssignmentService {
         return assignmentMapper.toResponse(assignment, totalQuestions, totalSubmissions);
     }
 
+    private LocalDateTime resolveAssignmentDueTime(Assignment assignment) {
+        if (ASSIGNMENT_TYPE_TEST.equals(assignment.getAssignmentType())) {
+            return assignment.getEndTime();
+        }
+        return assignment.getDeadline();
+    }
+
+    private boolean isOverdueWithoutSubmissionWindow(Assignment assignment, LocalDateTime now) {
+        LocalDateTime dueTime = resolveAssignmentDueTime(assignment);
+        return dueTime != null && !now.isBefore(dueTime);
+    }
+
+    private void createMissingSubmission(Assignment assignment, User studentUser, LocalDateTime submittedAt) {
+        submissionRepository.save(Submission.builder()
+                .assignment(assignment)
+                .user(studentUser)
+                .score(BigDecimal.ZERO)
+                .timeTaken(0)
+                .startedAt(submittedAt)
+                .expiredAt(submittedAt)
+                .submittedAt(submittedAt)
+                .submissionStatus(SUBMISSION_STATUS_MISSING)
+                .build());
+    }
+
+    private void materializeMissingForAssignmentAndUsers(Assignment assignment, List<User> users, LocalDateTime now) {
+        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
+            return;
+        }
+        if (!isOverdueWithoutSubmissionWindow(assignment, now)) {
+            return;
+        }
+
+        LocalDateTime dueTime = resolveAssignmentDueTime(assignment);
+        for (User user : users) {
+            Submission existing = submissionRepository
+                    .findByAssignment_AssignmentIDAndUser_UserID(assignment.getAssignmentID(), user.getUserID())
+                    .orElse(null);
+            if (existing == null) {
+                createMissingSubmission(assignment, user, dueTime != null ? dueTime : now);
+                continue;
+            }
+
+            if ((existing.getSubmissionStatus() == null || existing.getSubmissionStatus().isBlank())
+                    && existing.getSubmittedAt() == null) {
+                existing.setSubmissionStatus(SUBMISSION_STATUS_MISSING);
+                existing.setScore(BigDecimal.ZERO);
+                existing.setTimeTaken(0);
+                existing.setSubmittedAt(dueTime != null ? dueTime : now);
+                existing.setExpiredAt(dueTime != null ? dueTime : now);
+                if (existing.getStartedAt() == null) {
+                    existing.setStartedAt(dueTime != null ? dueTime : now);
+                }
+                submissionRepository.save(existing);
+            }
+        }
+    }
+
+    private void materializeMissingForStudent(User currentUser) {
+        Student student = studentRepository.findByUser(currentUser)
+                .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));
+        List<ClassMember> memberships = classMemberRepository.findByStudent_StudentID(student.getStudentID());
+        LocalDateTime now = LocalDateTime.now();
+
+        for (ClassMember membership : memberships) {
+            List<Assignment> assignments = assignmentRepository
+                    .findByClassroom_ClassIDAndStatus(membership.getClassroom().getClassID(), "ACTIVE");
+            for (Assignment assignment : assignments) {
+                materializeMissingForAssignmentAndUsers(assignment, List.of(currentUser), now);
+            }
+        }
+    }
+
+    private String resolveSubmissionStatus(Submission submission) {
+        if (submission == null) {
+            return null;
+        }
+        if (submission.getSubmissionStatus() != null && !submission.getSubmissionStatus().isBlank()) {
+            return submission.getSubmissionStatus();
+        }
+        if (submission.getSubmittedAt() != null) {
+            return SUBMISSION_STATUS_SUBMITTED;
+        }
+        return SUBMISSION_STATUS_IN_PROGRESS;
+    }
+
+    private String resolveSubmissionTimingStatus(Submission submission, Assignment assignment) {
+        String normalizedStatus = resolveSubmissionStatus(submission);
+        if (SUBMISSION_STATUS_MISSING.equalsIgnoreCase(normalizedStatus) || submission.getSubmittedAt() == null) {
+            return "MISSING";
+        }
+
+        LocalDateTime dueTime = resolveAssignmentDueTime(assignment);
+        if (dueTime != null && submission.getSubmittedAt().isAfter(dueTime)) {
+            return "LATE";
+        }
+        return "ON_TIME";
+    }
+
+    private double roundPercent(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private List<AssignmentResponse> attachStudentSubmissionSnapshot(User currentUser, List<AssignmentResponse> responses) {
+        if (responses.isEmpty()) {
+            return responses;
+        }
+        Map<Integer, Submission> submissionByAssignmentId = submissionRepository
+                .findByUser_UserID(currentUser.getUserID())
+                .stream()
+                .filter(s -> s.getAssignment() != null && s.getAssignment().getAssignmentID() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        s -> s.getAssignment().getAssignmentID(),
+                        s -> s,
+                        (existing, ignored) -> existing
+                ));
+
+        responses.forEach(resp -> {
+            Submission submission = submissionByAssignmentId.get(resp.getAssignmentID());
+            if (submission != null) {
+                resp.setSubmissionStatus(resolveSubmissionStatus(submission));
+                resp.setScore(submission.getScore());
+            }
+        });
+        return responses;
+    }
+
+    @Scheduled(fixedDelayString = "${app.assignment.missing-sync-ms:300000}")
+    @Transactional
+    public void syncMissingSubmissions() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Assignment> assignments = assignmentRepository.findAll();
+        for (Assignment assignment : assignments) {
+            if (assignment.getClassroom() == null || assignment.getClassroom().getClassID() == null) {
+                continue;
+            }
+            List<User> classUsers = classMemberRepository
+                    .findByClassroomClassID(assignment.getClassroom().getClassID())
+                    .stream()
+                    .map(cm -> cm.getStudent().getUser())
+                    .filter(Objects::nonNull)
+                    .toList();
+            materializeMissingForAssignmentAndUsers(assignment, classUsers, now);
+        }
+    }
+
     private AssignmentDetailResponse mapAssignmentDetailWithCounts(
             Assignment assignment,
             List<QuestionPreviewResponse> questionPreviews
@@ -498,7 +648,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ApiResponse<AssignmentReportResponse> getAssignmentReport(Integer assignmentId) {
         User currentUser = getCurrentUser();
         Assignment assignment = assignmentRepository.findById(assignmentId)
@@ -508,7 +658,35 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new AppException(ErrorCode.FORBIDDEN);
         }
 
+        List<User> classUsers = classMemberRepository
+                .findByClassroomClassID(assignment.getClassroom().getClassID())
+                .stream()
+                .map(cm -> cm.getStudent().getUser())
+                .filter(Objects::nonNull)
+                .toList();
+        materializeMissingForAssignmentAndUsers(assignment, classUsers, LocalDateTime.now());
+
         List<Submission> submissions = submissionRepository.findByAssignment_AssignmentID(assignmentId);
+        List<Integer> assignmentQuestionIds = assignmentRepository.findQuestionIdsByAssignmentId(assignmentId);
+
+        int totalStudents = classUsers.size();
+        long submittedCount = submissions.stream()
+                .filter(s -> {
+                    String timingStatus = resolveSubmissionTimingStatus(s, assignment);
+                    return "ON_TIME".equals(timingStatus) || "LATE".equals(timingStatus);
+                })
+                .count();
+        long passCount = submissions.stream()
+                .map(Submission::getScore)
+                .filter(Objects::nonNull)
+                .filter(score -> score.compareTo(BigDecimal.valueOf(5.0)) >= 0)
+                .count();
+        double completionRate = totalStudents > 0
+                ? roundPercent((submittedCount * 100.0) / totalStudents)
+                : 0.0;
+        double passRate = totalStudents > 0
+                ? roundPercent((passCount * 100.0) / totalStudents)
+                : 0.0;
 
         BigDecimal avgScore = BigDecimal.ZERO;
         BigDecimal highScore = BigDecimal.ZERO;
@@ -536,38 +714,132 @@ public class AssignmentServiceImpl implements AssignmentService {
                         .score(s.getScore())
                         .timeTaken(s.getTimeTaken())
                         .submitTime(s.getSubmittedAt())
+                        .submissionStatus(resolveSubmissionStatus(s))
+                        .submissionTimingStatus(resolveSubmissionTimingStatus(s, assignment))
                         .build())
+                .sorted(Comparator.comparing(AssignmentReportResponse.StudentSubmissionSummary::getStudentName,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .toList();
 
+        int lowScoreCount = 0;
+        int mediumScoreCount = 0;
+        int highScoreCount = 0;
+        for (Submission submission : submissions) {
+            BigDecimal score = submission.getScore();
+            if (score == null) {
+                continue;
+            }
+            if (score.compareTo(BigDecimal.valueOf(5)) < 0) {
+                lowScoreCount++;
+            } else if (score.compareTo(BigDecimal.valueOf(8)) <= 0) {
+                mediumScoreCount++;
+            } else {
+                highScoreCount++;
+            }
+        }
+        List<Integer> scoreDistribution = List.of(lowScoreCount, mediumScoreCount, highScoreCount);
+
         List<Object[]> rawStats = submissionAnswerRepository.countCorrectByQuestionForAssignment(assignmentId);
-        List<AssignmentReportResponse.QuestionStatistic> questionStats = rawStats.stream()
-                .map(row -> {
-                    Integer questionId = (Integer) row[0];
-                    long total = ((Number) row[1]).longValue();
-                    long correct = row[2] != null ? ((Number) row[2]).longValue() : 0L;
-                    Question q = questionRepository.findById(questionId).orElse(null);
-                    double accuracy = total > 0 ? Math.round(correct * 10000.0 / total) / 100.0 : 0.0;
-                    return AssignmentReportResponse.QuestionStatistic.builder()
+        Map<Integer, long[]> statsByQuestionId = new HashMap<>();
+        for (Object[] row : rawStats) {
+            Integer questionId = (Integer) row[0];
+            long total = ((Number) row[1]).longValue();
+            long correct = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+            statsByQuestionId.put(questionId, new long[]{total, correct});
+        }
+
+        List<Object[]> optionSelections = submissionAnswerRepository
+                .countSelectedOptionsByQuestionForAssignment(assignmentId);
+        Map<Integer, Map<Integer, Integer>> optionCountByQuestion = new HashMap<>();
+        for (Object[] row : optionSelections) {
+            Integer questionId = (Integer) row[0];
+            Integer optionId = (Integer) row[1];
+            Integer selectedCount = ((Number) row[2]).intValue();
+            optionCountByQuestion
+                    .computeIfAbsent(questionId, ignored -> new HashMap<>())
+                    .put(optionId, selectedCount);
+        }
+
+        List<Question> questionEntities = assignmentQuestionIds.isEmpty()
+                ? Collections.emptyList()
+                : questionRepository.findAllById(assignmentQuestionIds);
+        Map<Integer, Question> questionById = questionEntities.stream()
+                .collect(java.util.stream.Collectors.toMap(Question::getId, q -> q));
+
+        Map<Integer, List<Answer>> answersByQuestion = assignmentQuestionIds.isEmpty()
+                ? Collections.emptyMap()
+                : answerRepository.findByQuestion_IdIn(assignmentQuestionIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(a -> a.getQuestion().getId()));
+
+        List<AssignmentReportResponse.QuestionAnalysis> questionAnalysis = assignmentQuestionIds.stream()
+                .map(questionId -> {
+                    Question question = questionById.get(questionId);
+                    long[] values = statsByQuestionId.getOrDefault(questionId, new long[]{0L, 0L});
+                    int totalAnswered = (int) values[0];
+                    int correctCount = (int) values[1];
+                    double accuracy = totalAnswered > 0
+                            ? roundPercent((correctCount * 100.0) / totalAnswered)
+                            : 0.0;
+
+                    Map<Integer, Integer> selectedCounts = optionCountByQuestion.getOrDefault(questionId, Collections.emptyMap());
+                    List<AssignmentReportResponse.OptionStatistic> options = answersByQuestion
+                            .getOrDefault(questionId, Collections.emptyList())
+                            .stream()
+                            .sorted(Comparator.comparing(Answer::getLabel, Comparator.nullsLast(String::compareToIgnoreCase)))
+                            .map(answer -> {
+                                int selectedCount = selectedCounts.getOrDefault(answer.getId(), 0);
+                                boolean correct = Boolean.TRUE.equals(answer.getIsCorrect());
+                                return AssignmentReportResponse.OptionStatistic.builder()
+                                        .optionId(answer.getId())
+                                        .optionLabel(answer.getLabel())
+                                        .optionContent(answer.getContent())
+                                        .isCorrect(correct)
+                                        .selectedCount(selectedCount)
+                                        .wrongSelectedCount(correct ? 0 : selectedCount)
+                                        .build();
+                            })
+                            .toList();
+
+                    return AssignmentReportResponse.QuestionAnalysis.builder()
                             .questionId(questionId)
-                            .questionText(q != null ? q.getQuestionText() : "")
-                            .difficultyLevel(q != null ? q.getDifficultyLevel() : null)
-                            .correctCount((int) correct)
-                            .totalAnswered((int) total)
+                            .questionText(question != null ? question.getQuestionText() : "")
+                            .difficultyLevel(question != null ? question.getDifficultyLevel() : null)
+                            .correctCount(correctCount)
+                            .totalAnswered(totalAnswered)
                             .accuracyRate(accuracy)
+                            .options(options)
                             .build();
                 })
+                .sorted(Comparator.comparing(AssignmentReportResponse.QuestionAnalysis::getAccuracyRate,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        List<AssignmentReportResponse.QuestionStatistic> questionStats = questionAnalysis.stream()
+                .map(q -> AssignmentReportResponse.QuestionStatistic.builder()
+                        .questionId(q.getQuestionId())
+                        .questionText(q.getQuestionText())
+                        .difficultyLevel(q.getDifficultyLevel())
+                        .correctCount(q.getCorrectCount())
+                        .totalAnswered(q.getTotalAnswered())
+                        .accuracyRate(q.getAccuracyRate())
+                        .build())
                 .toList();
 
         AssignmentReportResponse report = AssignmentReportResponse.builder()
                 .assignmentId(assignmentId)
                 .title(assignment.getTitle())
                 .className(assignment.getClassroom() != null ? assignment.getClassroom().getClassName() : null)
+                .totalStudents(totalStudents)
                 .totalSubmissions(submissions.size())
+                .completionRate(completionRate)
+                .passRate(passRate)
+                .scoreDistribution(scoreDistribution)
                 .averageScore(avgScore)
                 .highestScore(highScore)
                 .lowestScore(lowScore)
                 .studentResults(studentResults)
                 .questionStats(questionStats)
+                .questionAnalysis(questionAnalysis)
                 .build();
 
         return ApiResponse.success("Lấy báo cáo đề kiểm tra thành công", report);
@@ -575,11 +847,33 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional(readOnly = true)
+    public ApiResponse<SubmissionResponse> getSubmissionDetailForTeacher(Integer submissionId) {
+        User currentUser = getCurrentUser();
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_RESULT_NOT_FOUND));
+
+        if (submission.getAssignment() == null
+                || submission.getAssignment().getUser() == null
+                || !submission.getAssignment().getUser().getUserID().equals(currentUser.getUserID())) {
+            throw new AppException(ErrorCode.FORBIDDEN);
+        }
+
+        List<SubmissionAnswer> answers = submissionAnswerRepository
+                .findBySubmission_SubmissionID(submission.getSubmissionID());
+
+        return ApiResponse.success("Lấy chi tiết bài nộp thành công", buildSubmissionResponse(submission, answers));
+    }
+
+    @Override
+    @Transactional
     public ApiResponse<List<AssignmentResponse>> getAssignmentsForStudent(Integer classroomId) {
+        User currentUser = getCurrentUser();
+        materializeMissingForStudent(currentUser);
         List<Assignment> assignments = assignmentRepository.findByClassroom_ClassIDAndStatus(classroomId, "ACTIVE");
         List<AssignmentResponse> responses = assignments.stream()
                 .map(this::mapAssignmentResponseWithCounts)
                 .toList();
+        attachStudentSubmissionSnapshot(currentUser, responses);
         return ApiResponse.success("Lấy danh sách đề kiểm tra thành công", responses);
     }
 
@@ -621,6 +915,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .user(currentUser)
                 .startedAt(now)
                 .expiredAt(expiredAt)
+                .submissionStatus(SUBMISSION_STATUS_IN_PROGRESS)
                 .build());
 
         return ApiResponse.success("Bắt đầu làm bài thành công",
@@ -719,6 +1014,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         submission.setScore(score);
         submission.setTimeTaken(request.getTimeTaken());
         submission.setSubmittedAt(now);
+        submission.setSubmissionStatus(SUBMISSION_STATUS_SUBMITTED);
         submissionRepository.save(submission);
 
         SubmissionResponse response = buildSubmissionResponse(submission, submissionAnswers);
@@ -744,12 +1040,13 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ApiResponse<List<AssignmentResponse>> getStudentActiveAssignments() {
         User currentUser = getCurrentUser();
+        materializeMissingForStudent(currentUser);
+
         Student student = studentRepository.findByUser(currentUser)
                 .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));
-
         List<ClassMember> memberships = classMemberRepository.findByStudent_StudentID(student.getStudentID());
         List<Assignment> assignments = memberships.stream()
                 .flatMap(m -> assignmentRepository.findByClassroom_ClassIDAndStatus(
@@ -760,14 +1057,16 @@ public class AssignmentServiceImpl implements AssignmentService {
         List<AssignmentResponse> responses = assignments.stream()
                 .map(this::mapAssignmentResponseWithCounts)
                 .toList();
+        attachStudentSubmissionSnapshot(currentUser, responses);
 
         return ApiResponse.success("Lấy danh sách đề kiểm tra thành công", responses);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ApiResponse<List<SubmissionResponse>> getStudentSubmissions() {
         User currentUser = getCurrentUser();
+        materializeMissingForStudent(currentUser);
 
         List<Submission> submissions = submissionRepository.findByUser_UserID(currentUser.getUserID());
 
@@ -783,38 +1082,71 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ApiResponse<AssignmentResultResponse> getMyResult(Integer assignmentId) {
         User currentUser = getCurrentUser();
 
-        assignmentRepository.findById(assignmentId)
+        materializeMissingForStudent(currentUser);
+
+        Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_NOT_FOUND));
 
         Submission submission = submissionRepository
                 .findByAssignment_AssignmentIDAndUser_UserID(assignmentId, currentUser.getUserID())
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_RESULT_NOT_FOUND));
 
-        if (submission.getSubmittedAt() == null) {
-            throw new AppException(ErrorCode.ASSIGNMENT_RESULT_NOT_FOUND);
-        }
-
         List<SubmissionAnswer> answers = submissionAnswerRepository
                 .findBySubmission_SubmissionID(submission.getSubmissionID());
         List<Integer> assignmentQuestionIds = assignmentRepository.findQuestionIdsByAssignmentId(assignmentId);
         Map<Integer, Answer> correctAnswerByQuestion = mapCorrectAnswersByQuestionIds(assignmentQuestionIds);
 
-        List<AssignmentResultResponse.QuestionResult> questionResults = answers.stream()
-                .map(sa -> {
-                    Answer correctAnswer = correctAnswerByQuestion.get(sa.getQuestion().getId());
+        Map<Integer, SubmissionAnswer> answerByQuestionId = answers.stream()
+                .filter(sa -> sa.getQuestion() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        sa -> sa.getQuestion().getId(),
+                        sa -> sa,
+                        (existing, ignored) -> existing
+                ));
+
+        String normalizedStatus = resolveSubmissionStatus(submission);
+        boolean isMissed = SUBMISSION_STATUS_MISSING.equalsIgnoreCase(normalizedStatus);
+
+        List<AssignmentResultResponse.QuestionResult> questionResults = assignmentQuestionIds.stream()
+                .map(questionId -> {
+                    SubmissionAnswer submissionAnswer = answerByQuestionId.get(questionId);
+                    Answer correctAnswer = correctAnswerByQuestion.get(questionId);
+
+                    if (submissionAnswer == null) {
+                        Question q = questionRepository.findById(questionId).orElse(null);
+                        return AssignmentResultResponse.QuestionResult.builder()
+                                .questionId(questionId)
+                                .questionText(q != null ? q.getQuestionText() : "")
+                                .selectedAnswerRefId(null)
+                                .selectedAnswer(null)
+                                .correctAnswerRefId(correctAnswer != null ? correctAnswer.getId() : null)
+                                .correctAnswer(correctAnswer != null ? correctAnswer.getContent() : null)
+                                .isCorrect(false)
+                                .build();
+                    }
+
                     return submissionMapper.toQuestionResult(
-                            sa,
+                            submissionAnswer,
                             correctAnswer != null ? correctAnswer.getId() : null,
                             correctAnswer != null ? correctAnswer.getContent() : null
                     );
                 })
                 .toList();
 
-        int correctCount = (int) answers.stream().filter(sa -> Boolean.TRUE.equals(sa.getIsCorrect())).count();
+        int correctCount = isMissed
+                ? 0
+                : (int) answers.stream().filter(sa -> Boolean.TRUE.equals(sa.getIsCorrect())).count();
+
+        if (isMissed) {
+            submission.setScore(BigDecimal.ZERO);
+            if (submission.getSubmittedAt() == null) {
+                submission.setSubmittedAt(resolveAssignmentDueTime(assignment));
+            }
+        }
 
         AssignmentResultResponse response = submissionMapper.toAssignmentResultResponse(
                 submission,
@@ -822,6 +1154,11 @@ public class AssignmentServiceImpl implements AssignmentService {
                 correctCount,
                 questionResults
         );
+        response.setSubmissionStatus(isMissed ? "MISSED" : "SUBMITTED");
+        if (isMissed) {
+            response.setScore(BigDecimal.ZERO);
+            response.setCorrectCount(0);
+        }
 
         return ApiResponse.success("Lấy kết quả bài làm thành công", response);
     }

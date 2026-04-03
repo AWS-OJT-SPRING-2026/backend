@@ -19,4 +19,13 @@ public interface SubmissionAnswerRepository extends JpaRepository<SubmissionAnsw
             GROUP BY sa.question.id
             """)
     List<Object[]> countCorrectByQuestionForAssignment(@Param("assignmentId") Integer assignmentId);
+
+    @Query("""
+            SELECT sa.question.id, sa.answerRef.id, COUNT(sa)
+            FROM SubmissionAnswer sa
+            WHERE sa.submission.assignment.assignmentID = :assignmentId
+              AND sa.answerRef.id IS NOT NULL
+            GROUP BY sa.question.id, sa.answerRef.id
+            """)
+    List<Object[]> countSelectedOptionsByQuestionForAssignment(@Param("assignmentId") Integer assignmentId);
 }

@@ -10,6 +10,7 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.UserMapper;
 import ojt.aws.educare.repository.StudentRepository;
+import ojt.aws.educare.service.S3UploadService;
 import ojt.aws.educare.service.StudentService;
 import org.springframework.stereotype.Service;
 
@@ -21,12 +22,14 @@ import java.util.List;
 public class StudentServiceImpl implements StudentService {
     StudentRepository studentRepository;
     UserMapper userMapper;
+    S3UploadService s3UploadService;
 
     @Override
     public ApiResponse<List<StudentResponse>> getAllStudents() {
         List<Student> students = studentRepository.findAll();
 
         List<StudentResponse> studentResponses = userMapper.toStudentResponseList(students);
+        studentResponses.forEach(this::resolveAvatarUrl);
 
         return ApiResponse.success("Lấy danh sách học sinh thành công", studentResponses);
     }
@@ -37,7 +40,15 @@ public class StudentServiceImpl implements StudentService {
                 .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));
 
         StudentResponse response = userMapper.toStudentResponse(student);
+        resolveAvatarUrl(response);
 
         return ApiResponse.success("Lấy thông tin học sinh thành công", response);
+    }
+
+    private void resolveAvatarUrl(StudentResponse response) {
+        if (response == null) {
+            return;
+        }
+        response.setAvatarUrl(s3UploadService.resolveFileUrl(response.getAvatarUrl()));
     }
 }
