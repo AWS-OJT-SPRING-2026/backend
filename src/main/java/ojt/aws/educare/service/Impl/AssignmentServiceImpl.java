@@ -664,20 +664,76 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .map(cm -> cm.getStudent().getUser())
                 .filter(Objects::nonNull)
                 .toList();
+        Map<Integer, User> classUserById = new LinkedHashMap<>();
+        for (User classUser : classUsers) {
+            if (classUser.getUserID() != null) {
+                classUserById.putIfAbsent(classUser.getUserID(), classUser);
+            }
+        }
         materializeMissingForAssignmentAndUsers(assignment, classUsers, LocalDateTime.now());
 
         List<Submission> submissions = submissionRepository.findByAssignment_AssignmentID(assignmentId);
+        Map<Integer, Submission> submissionByUserId = new HashMap<>();
+        for (Submission submission : submissions) {
+            if (submission.getUser() == null || submission.getUser().getUserID() == null) {
+                continue;
+            }
+            Integer userId = submission.getUser().getUserID();
+            Submission current = submissionByUserId.get(userId);
+            if (current == null) {
+                submissionByUserId.put(userId, submission);
+                continue;
+            }
+            LocalDateTime currentSubmittedAt = current.getSubmittedAt();
+            LocalDateTime nextSubmittedAt = submission.getSubmittedAt();
+            if (currentSubmittedAt == null || (nextSubmittedAt != null && nextSubmittedAt.isAfter(currentSubmittedAt))) {
+                submissionByUserId.put(userId, submission);
+            }
+        }
         List<Integer> assignmentQuestionIds = assignmentRepository.findQuestionIdsByAssignmentId(assignmentId);
 
-        int totalStudents = classUsers.size();
-        long submittedCount = submissions.stream()
+        List<AssignmentReportResponse.StudentSubmissionSummary> studentResults = classUserById.values().stream()
+                .map(user -> {
+                    Submission submission = submissionByUserId.get(user.getUserID());
+                    if (submission == null) {
+                        return AssignmentReportResponse.StudentSubmissionSummary.builder()
+                                .submissionId(null)
+                                .userId(user.getUserID())
+                                .studentName(user.getFullName())
+                                .score(BigDecimal.ZERO)
+                                .timeTaken(null)
+                                .submitTime(null)
+                                .submissionStatus(SUBMISSION_STATUS_MISSING)
+                                .submissionTimingStatus("MISSING")
+                                .build();
+                    }
+
+                    return AssignmentReportResponse.StudentSubmissionSummary.builder()
+                            .submissionId(submission.getSubmissionID())
+                            .userId(submission.getUser().getUserID())
+                            .studentName(submission.getUser().getFullName())
+                            .score(submission.getScore())
+                            .timeTaken(submission.getTimeTaken())
+                            .submitTime(submission.getSubmittedAt())
+                            .submissionStatus(resolveSubmissionStatus(submission))
+                            .submissionTimingStatus(resolveSubmissionTimingStatus(submission, assignment))
+                            .build();
+                })
+                .sorted(Comparator.comparing(AssignmentReportResponse.StudentSubmissionSummary::getStudentName,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
+
+        List<AssignmentReportResponse.StudentSubmissionSummary> submittedStudents = studentResults.stream()
                 .filter(s -> {
-                    String timingStatus = resolveSubmissionTimingStatus(s, assignment);
+                    String timingStatus = s.getSubmissionTimingStatus();
                     return "ON_TIME".equals(timingStatus) || "LATE".equals(timingStatus);
                 })
-                .count();
-        long passCount = submissions.stream()
-                .map(Submission::getScore)
+                .toList();
+
+        int totalStudents = studentResults.size();
+        long submittedCount = submittedStudents.size();
+        long passCount = submittedStudents.stream()
+                .map(AssignmentReportResponse.StudentSubmissionSummary::getScore)
                 .filter(Objects::nonNull)
                 .filter(score -> score.compareTo(BigDecimal.valueOf(5.0)) >= 0)
                 .count();
@@ -692,9 +748,9 @@ public class AssignmentServiceImpl implements AssignmentService {
         BigDecimal highScore = BigDecimal.ZERO;
         BigDecimal lowScore = BigDecimal.ZERO;
 
-        if (!submissions.isEmpty()) {
-            List<BigDecimal> scores = submissions.stream()
-                    .map(Submission::getScore)
+        if (!submittedStudents.isEmpty()) {
+            List<BigDecimal> scores = submittedStudents.stream()
+                    .map(AssignmentReportResponse.StudentSubmissionSummary::getScore)
                     .filter(Objects::nonNull)
                     .toList();
 
@@ -706,26 +762,11 @@ public class AssignmentServiceImpl implements AssignmentService {
             }
         }
 
-        List<AssignmentReportResponse.StudentSubmissionSummary> studentResults = submissions.stream()
-                .map(s -> AssignmentReportResponse.StudentSubmissionSummary.builder()
-                        .submissionId(s.getSubmissionID())
-                        .userId(s.getUser().getUserID())
-                        .studentName(s.getUser().getFullName())
-                        .score(s.getScore())
-                        .timeTaken(s.getTimeTaken())
-                        .submitTime(s.getSubmittedAt())
-                        .submissionStatus(resolveSubmissionStatus(s))
-                        .submissionTimingStatus(resolveSubmissionTimingStatus(s, assignment))
-                        .build())
-                .sorted(Comparator.comparing(AssignmentReportResponse.StudentSubmissionSummary::getStudentName,
-                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
-                .toList();
-
         int lowScoreCount = 0;
         int mediumScoreCount = 0;
         int highScoreCount = 0;
-        for (Submission submission : submissions) {
-            BigDecimal score = submission.getScore();
+        for (AssignmentReportResponse.StudentSubmissionSummary student : submittedStudents) {
+            BigDecimal score = student.getScore();
             if (score == null) {
                 continue;
             }
@@ -830,7 +871,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .title(assignment.getTitle())
                 .className(assignment.getClassroom() != null ? assignment.getClassroom().getClassName() : null)
                 .totalStudents(totalStudents)
-                .totalSubmissions(submissions.size())
+                .totalSubmissions((int) submittedCount)
                 .completionRate(completionRate)
                 .passRate(passRate)
                 .scoreDistribution(scoreDistribution)
