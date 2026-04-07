@@ -72,7 +72,9 @@ public class SecurityConfig {
                 "https://localhost:*",
                 "http://127.0.0.1:*",
                 "https://*.ngrok-free.app",
-                "https://*.amplifyapp.com"
+                "https://*.amplifyapp.com",
+                "https://slothub.id.vn",
+                "https://*.slothub.id.vn"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));
