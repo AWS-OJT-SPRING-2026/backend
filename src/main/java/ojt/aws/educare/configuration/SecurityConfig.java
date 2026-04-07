@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,10 +14,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -42,9 +41,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
-                .cors(Customizer.withDefaults())
+                // Trỏ vào CorsConfigurationSource bean bên dưới để Spring Security
+                // xử lý CORS đúng bên trong filter chain của nó
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(request ->
                         request.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                                // Cho phép toàn bộ OPTIONS preflight đi qua mà không cần auth
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                 .anyRequest().authenticated());
 
@@ -60,16 +62,16 @@ public class SecurityConfig {
     }
 
     /**
-     * CorsFilter bean với HIGHEST_PRECEDENCE để chạy TRƯỚC Spring Security.
-     * Dùng allowedOriginPatterns("*") thay vì allowedOrigins("*") để
-     * tương thích với allowCredentials=true (Spring Security 6 requirement).
+     * CorsConfigurationSource Bean:
+     * - Được Spring Security dùng trong filter chain nội bộ (.cors(cors -> cors.configurationSource(...)))
+     * - Được FilterRegistrationBean bên dưới tái sử dụng để chạy trước Spring Security
+     *
+     * allowedOriginPatterns("*") + allowCredentials(true) là cú pháp bắt buộc trong Spring Boot 3.
+     * allowedOrigins("*") sẽ lỗi khi kết hợp với allowCredentials(true).
      */
     @Bean
-    public FilterRegistrationBean<CorsFilter> corsFilterRegistrationBean() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // allowedOriginPatterns("*") + allowCredentials(true) là cách duy nhất
-        // hoạt động với Spring Boot 3 / Spring Security 6
         config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
@@ -79,9 +81,18 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
+        return source;
+    }
 
-        FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
-        // HIGHEST_PRECEDENCE = chạy trước tất cả mọi filter kể cả Spring Security
+    /**
+     * FilterRegistrationBean chạy tại HIGHEST_PRECEDENCE (trước cả Spring Security).
+     * Đảm bảo OPTIONS preflight luôn nhận được CORS headers ngay cả khi
+     * Spring Security chưa kịp load. Tái sử dụng cùng config với bean bên trên.
+     */
+    @Bean
+    public FilterRegistrationBean<CorsFilter> corsFilterRegistrationBean() {
+        FilterRegistrationBean<CorsFilter> bean =
+                new FilterRegistrationBean<>(new CorsFilter(corsConfigurationSource()));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return bean;
     }
