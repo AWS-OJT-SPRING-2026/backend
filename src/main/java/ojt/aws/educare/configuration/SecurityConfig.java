@@ -67,17 +67,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",
-                "https://localhost:*",
-                "http://127.0.0.1:*",
-                "https://*.ngrok-free.app",
-                "https://*.amplifyapp.com",
-                "https://slothub.id.vn",
-                "https://*.slothub.id.vn"
-        ));
-        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        config.setAllowedHeaders(Arrays.asList("*", "Authorization", "Content-Type", "Accept", "ngrok-skip-browser-warning", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"));
+        config.setAllowedOriginPatterns(Arrays.asList("*"));
+        config.setAllowedMethods(Arrays.asList("*"));
+        config.setAllowedHeaders(Arrays.asList("*"));
         config.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
