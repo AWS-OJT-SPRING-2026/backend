@@ -14,7 +14,7 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   config:
-    import: optional:file:BE/.env[.properties]
+    import: optional:file:backend/.env[.properties]
 
   jpa:
     hibernate:
