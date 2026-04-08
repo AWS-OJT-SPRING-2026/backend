@@ -37,7 +37,7 @@ public enum ErrorCode {
     // ROLE ERRORS
     ROLE_NOT_FOUND(1019, "Role không tồn tại", HttpStatus.NOT_FOUND),
     DEFAULT_ROLE_NOT_FOUND(1020, "Không tìm thấy role mặc định", HttpStatus.NOT_FOUND),
-    USER_INACTIVE(1021, "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ giáo viên hoặc trung tâm để được mở khóa.", HttpStatus.FORBIDDEN),
+    USER_INACTIVE(1021, "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để mở lại.", HttpStatus.FORBIDDEN),
 
     DELETE_ADMIN_INVALID(1022, "Không thể xóa tài khoản Quản trị viên hệ thống", HttpStatus.BAD_REQUEST),
     DELETE_SELF_INVALID(1023, "Bạn không thể tự khóa tài khoản của chính mình!", HttpStatus.BAD_REQUEST),
@@ -93,6 +93,7 @@ public enum ErrorCode {
     DOCUMENT_NOT_FOUND(1073, "Không tìm thấy tài liệu", HttpStatus.NOT_FOUND),
     NO_PERMISSION_DISTRIBUTE_DOCUMENT(1074, "Bạn không có quyền phân phối tài liệu cho lớp này", HttpStatus.FORBIDDEN),
     STUDENT_MATERIAL_ACCESS_DENIED(1075, "Bạn không có quyền xem tài liệu này", HttpStatus.FORBIDDEN),
+    COGNITO_SYNC_FAILED(1076, "Không thể đồng bộ dữ liệu tài khoản với AWS Cognito. Vui lòng thử lại sau.", HttpStatus.BAD_GATEWAY),
 
     // ASSIGNMENT ERRORS
     ASSIGNMENT_NOT_FOUND(1400, "Không tìm thấy đề kiểm tra", HttpStatus.NOT_FOUND),

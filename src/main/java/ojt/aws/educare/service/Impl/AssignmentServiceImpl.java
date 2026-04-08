@@ -3,6 +3,7 @@ package ojt.aws.educare.service.Impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.CreateAssignmentRequest;
 import ojt.aws.educare.dto.request.SubmitAssignmentRequest;
 import ojt.aws.educare.dto.request.UpdateAssignmentRequest;
@@ -15,7 +16,6 @@ import ojt.aws.educare.mapper.QuestionMapper;
 import ojt.aws.educare.mapper.SubmissionMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.AssignmentService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +48,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     ClassMemberRepository classMemberRepository;
     StudentRepository studentRepository;
     TeacherRepository teacherRepository;
-    UserRepository userRepository;
+    CurrentUserProvider currentUserProvider;
     AssignmentMapper assignmentMapper;
     QuestionMapper questionMapper;
     SubmissionMapper submissionMapper;
@@ -76,9 +76,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     private User getCurrentUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        return currentUserProvider.getCurrentUser();
     }
 
     private Teacher getCurrentTeacher(User currentUser) {

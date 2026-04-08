@@ -3,6 +3,7 @@ package ojt.aws.educare.service.Impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.response.*;
 import ojt.aws.educare.entity.Book;
 import ojt.aws.educare.entity.ClassMember;
@@ -16,9 +17,7 @@ import ojt.aws.educare.repository.BookRepository;
 import ojt.aws.educare.repository.ClassMemberRepository;
 import ojt.aws.educare.repository.ClassroomMaterialRepository;
 import ojt.aws.educare.repository.StudentRepository;
-import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.service.MaterialService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +33,7 @@ public class MaterialServiceImpl implements MaterialService {
     ClassMemberRepository classMemberRepository;
     ClassroomMaterialRepository classroomMaterialRepository;
     BookRepository bookRepository;
-    UserRepository userRepository;
+    CurrentUserProvider currentUserProvider;
     BookHierarchyMapper bookHierarchyMapper;
 
     @Override
@@ -73,9 +72,7 @@ public class MaterialServiceImpl implements MaterialService {
 
 
     private Student getCurrentStudent() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User user = currentUserProvider.getCurrentUser();
 
         return studentRepository.findByUser_UserID(user.getUserID())
                 .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));

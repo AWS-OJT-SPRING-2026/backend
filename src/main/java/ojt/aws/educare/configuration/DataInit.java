@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ojt.aws.educare.entity.*;
 import ojt.aws.educare.repository.*;
+import ojt.aws.educare.service.CognitoIdentityService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,7 @@ public class DataInit {
     private final ClassMemberRepository classMemberRepository;
     private final PasswordEncoder passwordEncoder;
     private final TimetableRepository timetableRepository;
+    private final CognitoIdentityService cognitoIdentityService;
 
     @Bean
     CommandLineRunner initDatabase() {
@@ -36,6 +38,7 @@ public class DataInit {
 
             // Kiểm tra nếu đã có dữ liệu thì không khởi tạo lại
             if (isDataAlreadyInitialized()) {
+                syncDemoUsersWithCognitoSub();
                 log.info("Dữ liệu đã được khởi tạo trước đó. Bỏ qua quá trình khởi tạo.");
                 return;
             }
@@ -46,7 +49,7 @@ public class DataInit {
             Role studentRole = createRoleIfNotExists("STUDENT", "Học sinh");
 
             // 2. Tạo Users
-            User admin = createUserIfNotExists("admin", "admin123", "Admin System",
+            User admin = createUserIfNotExists("admin", "Admin@123", "Admin System",
                     "admin@educare.com", "0999888777", adminRole);
 
             // Tạo 9 giáo viên (tăng lên để có đủ giáo viên cho các lớp)
@@ -99,11 +102,12 @@ public class DataInit {
 
         for (String[] info : teacherInfo) {
             User user = createUserIfNotExists(
-                    info[0], "teacher123", info[1], info[2], info[3], teacherRole
+                    info[0],
+                    "Teacher@123", // Đổi "teacher123" thành "Teacher@123"
+                    info[1], info[2], info[3], teacherRole
             );
             teacherUsers.add(user);
         }
-
         return teacherUsers;
     }
 
@@ -385,35 +389,35 @@ public class DataInit {
     private List<Student> createStudentsWithFullInfo(Role studentRole) {
         // Tạo users cho học sinh
         List<User> studentUsers = Arrays.asList(
-                createUserIfNotExists("student1", "student123", "Phạm Thị Dung",
+                createUserIfNotExists("student1", "Student@123", "Phạm Thị Dung",
                         "student1@educare.com", "0945678901", studentRole),
-                createUserIfNotExists("student2", "student123", "Hoàng Văn Em",
+                createUserIfNotExists("student2", "Student@123", "Hoàng Văn Em",
                         "student2@educare.com", "0956789012", studentRole),
-                createUserIfNotExists("student3", "student123", "Vũ Thị Phương",
+                createUserIfNotExists("student3", "Student@123", "Vũ Thị Phương",
                         "student3@educare.com", "0967890123", studentRole),
-                createUserIfNotExists("student4", "student123", "Đặng Văn Giang",
+                createUserIfNotExists("student4", "Student@123", "Đặng Văn Giang",
                         "student4@educare.com", "0978901234", studentRole),
-                createUserIfNotExists("student5", "student123", "Bùi Thị Hà",
+                createUserIfNotExists("student5", "Student@123", "Bùi Thị Hà",
                         "student5@educare.com", "0989012345", studentRole),
-                createUserIfNotExists("student6", "student123", "Ngô Văn Inh",
+                createUserIfNotExists("student6", "Student@123", "Ngô Văn Inh",
                         "student6@educare.com", "0990123456", studentRole),
-                createUserIfNotExists("student7", "student123", "Dương Thị Khánh",
+                createUserIfNotExists("student7", "Student@123", "Dương Thị Khánh",
                         "student7@educare.com", "0901234567", studentRole),
-                createUserIfNotExists("student8", "student123", "Lý Văn Lâm",
+                createUserIfNotExists("student8", "Student@123", "Lý Văn Lâm",
                         "student8@educare.com", "0912345670", studentRole),
-                createUserIfNotExists("student9", "student123", "Mai Thị Mai",
+                createUserIfNotExists("student9", "Student@123", "Mai Thị Mai",
                         "student9@educare.com", "0923456781", studentRole),
-                createUserIfNotExists("student10", "student123", "Trịnh Văn Nam",
+                createUserIfNotExists("student10", "Student@123", "Trịnh Văn Nam",
                         "student10@educare.com", "0934567892", studentRole),
-                createUserIfNotExists("student11", "student123", "Nguyễn Thị Lan",
+                createUserIfNotExists("student11", "Student@123", "Nguyễn Thị Lan",
                         "student11@educare.com", "0945678902", studentRole),
-                createUserIfNotExists("student12", "student123", "Trần Văn Hùng",
+                createUserIfNotExists("student12", "Student@123", "Trần Văn Hùng",
                         "student12@educare.com", "0956789013", studentRole),
-                createUserIfNotExists("student13", "student123", "Lê Thị Hoa",
+                createUserIfNotExists("student13", "Student@123", "Lê Thị Hoa",
                         "student13@educare.com", "0967890124", studentRole),
-                createUserIfNotExists("student14", "student123", "Phạm Văn Tuấn",
+                createUserIfNotExists("student14", "Student@123", "Phạm Văn Tuấn",
                         "student14@educare.com", "0978901235", studentRole),
-                createUserIfNotExists("student15", "student123", "Hoàng Thị Thu",
+                createUserIfNotExists("student15", "Student@123", "Hoàng Thị Thu",
                         "student15@educare.com", "0989012346", studentRole)
         );
 
@@ -592,7 +596,25 @@ public class DataInit {
 
     private User createUserIfNotExists(String username, String password, String fullName,
                                        String email, String phone, Role role) {
-        return userRepository.findByUsername(username).orElseGet(() -> {
+        String cognitoSub = cognitoIdentityService.createUser(username, email, password, fullName, role.getRoleName());
+
+        return userRepository.findByUsername(username).map(existing -> {
+            boolean changed = false;
+            if (existing.getCognitoSub() == null || existing.getCognitoSub().isBlank()) {
+                existing.setCognitoSub(cognitoSub);
+                changed = true;
+            }
+            if (existing.getEmail() == null || existing.getEmail().isBlank()) {
+                existing.setEmail(email);
+                changed = true;
+            }
+            if (changed) {
+                User updated = userRepository.save(existing);
+                log.info("Đã đồng bộ CognitoSub cho user demo: {}", username);
+                return updated;
+            }
+            return existing;
+        }).orElseGet(() -> {
             User user = User.builder()
                     .username(username)
                     .password(passwordEncoder.encode(password))
@@ -601,11 +623,55 @@ public class DataInit {
                     .phone(phone)
                     .status("ACTIVE")
                     .role(role)
+                    .cognitoSub(cognitoSub)
                     .build();
             User savedUser = userRepository.save(user);
             log.info("Đã tạo User: {} / {}", username, password);
             return savedUser;
         });
+    }
+
+    private void syncDemoUsersWithCognitoSub() {
+        for (User user : userRepository.findAll()) {
+            if (user.getCognitoSub() != null && !user.getCognitoSub().isBlank()) {
+                continue;
+            }
+
+            String defaultPassword = resolveSeedPassword(user.getUsername());
+            if (defaultPassword == null) {
+                continue;
+            }
+            if (user.getRole() == null || user.getRole().getRoleName() == null) {
+                continue;
+            }
+
+            String cognitoSub = cognitoIdentityService.createUser(
+                    user.getUsername(),
+                    user.getEmail(),
+                    defaultPassword,
+                    user.getFullName(),
+                    user.getRole().getRoleName()
+            );
+            user.setCognitoSub(cognitoSub);
+            userRepository.save(user);
+            log.info("Đã backfill CognitoSub cho demo user: {}", user.getUsername());
+        }
+    }
+
+    private String resolveSeedPassword(String username) {
+        if (username == null) return null;
+
+        // Đổi mật khẩu có ít nhất 1 chữ VIẾT HOA (ví dụ: Admin@123)
+        if ("admin".equalsIgnoreCase(username)) {
+            return "Admin@123";
+        }
+        if (username.toLowerCase().startsWith("teacher")) {
+            return "Teacher@123";
+        }
+        if (username.toLowerCase().startsWith("student")) {
+            return "Student@123";
+        }
+        return null;
     }
 
     private Teacher createTeacherDetailIfNotExists(User user, String fullName, String specialization,

@@ -18,6 +18,11 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
 
+    // ── NEW: Cognito identity lookup ──────────────────────────────────────────
+    // Used by CognitoUserSyncService to find an existing account by the Cognito
+    // subject identifier (UUID assigned by Cognito, stable across email changes).
+    Optional<User> findByCognitoSub(String cognitoSub);
+
     @Query("SELECT u FROM User u WHERE " +
             "(:roleName = '' OR UPPER(u.role.roleName) = :roleName) AND " +
             "(:keyword = '' OR " +

@@ -3,6 +3,7 @@ package ojt.aws.educare.service.Impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.*;
 import ojt.aws.educare.dto.response.*;
 import ojt.aws.educare.entity.*;
@@ -11,7 +12,6 @@ import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.TimetableMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.TimetableService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +34,7 @@ public class TimetableServiceImpl implements TimetableService {
     SubjectRepository subjectRepository;
     UserRepository userRepository;
     AttendanceRepository attendanceRepository;
+    CurrentUserProvider currentUserProvider;
 
     TimetableMapper timetableMapper;
 
@@ -279,8 +280,7 @@ public class TimetableServiceImpl implements TimetableService {
         Timetable timetable = timetableRepository.findById(timetableID)
                 .orElseThrow(() -> new AppException(ErrorCode.TIMETABLE_NOT_FOUND));
 
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByUsername(username).orElseThrow();
+        User currentUser = currentUserProvider.getCurrentUser();
 
         if (timetable.getTeacher() == null || !timetable.getTeacher().getUser().getUserID().equals(currentUser.getUserID())) {
             throw new AppException(ErrorCode.NO_PERMISSION_UPDATE_TIMETABLE_LINK);
@@ -316,9 +316,8 @@ public class TimetableServiceImpl implements TimetableService {
     public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end) {
         validateTimeRange(start, end);
 
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User currentUser = currentUserProvider.getCurrentUser();
+        String username = currentUser.getUsername();
 
         List<Timetable> timetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
         syncStatuses(timetables, LocalDateTime.now());
@@ -342,9 +341,8 @@ public class TimetableServiceImpl implements TimetableService {
     public ApiResponse<StudentWeeklyStatsResponse> getStudentScheduleStats(LocalDateTime start, LocalDateTime end) {
         validateTimeRange(start, end);
 
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User currentUser = currentUserProvider.getCurrentUser();
+        String username = currentUser.getUsername();
 
         // Tiết học & Môn học tuần này
         List<Timetable> weeklyTimetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
@@ -428,9 +426,7 @@ public class TimetableServiceImpl implements TimetableService {
     }
 
     private Teacher getCurrentTeacher() {
-        String username = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User currentUser = currentUserProvider.getCurrentUser();
 
         Teacher currentTeacher = currentUser.getTeacher();
         if (currentTeacher == null) {

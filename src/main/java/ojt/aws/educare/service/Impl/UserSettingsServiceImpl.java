@@ -3,6 +3,7 @@ package ojt.aws.educare.service.Impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.UserSettingsUpdateRequest;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.UserSettingsResponse;
@@ -11,10 +12,8 @@ import ojt.aws.educare.entity.UserSettings;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.UserSettingsMapper;
-import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.repository.UserSettingsRepository;
 import ojt.aws.educare.service.UserSettingsService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSettingsServiceImpl implements UserSettingsService {
 
     UserSettingsRepository userSettingsRepository;
-    UserRepository userRepository;
+    CurrentUserProvider currentUserProvider;
     UserSettingsMapper userSettingsMapper;
 
     private User getCurrentUser() {
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        return currentUserProvider.getCurrentUser();
     }
 
     @Override

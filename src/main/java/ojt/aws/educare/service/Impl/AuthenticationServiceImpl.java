@@ -25,7 +25,6 @@ import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.service.AuthenticationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
 import java.time.Instant;
@@ -34,7 +33,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
-@Service
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)

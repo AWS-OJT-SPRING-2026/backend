@@ -14,7 +14,7 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   config:
-    import: optional:file:backend/.env[.properties]
+    import: optional:file:BE/.env[.properties]
 
   jpa:
     hibernate:
@@ -36,12 +36,27 @@ spring:
           starttls:
             enable: true
 
-jwt:
-  signerKey: ${JWT_SIGNER_KEY}
+  # ── NEW: AWS Cognito Resource Server (replaces local JWT validation) ─────────
+  # Spring Boot auto-configures a NimbusJwtDecoder that:
+  #   1. Fetches the JWKS from the Cognito issuer's discovery endpoint.
+  #   2. Validates the RS256 signature of every incoming Bearer token.
+  # No code changes needed in SecurityConfig — just removing the explicit
+  # customJwtDecoder and letting Spring Boot wire this automatically.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${COGNITO_ISSUER_URI}
+
 
 aws:
-  access-key: ${AWS_ACCESS_KEY}
-  secret-key: ${AWS_SECRET_KEY}
+  access-key: ${AWS_ACCESS_KEY_ID}
+  secret-key: ${AWS_SECRET_ACCESS_KEY}
   region: ap-southeast-1
   s3:
     bucket-name: educare-upload-2026
+
+cognito:
+  app-client-id: ${COGNITO_APP_CLIENT_ID}
+  user-pool-id: ${COGNITO_USER_POOL_ID}
+

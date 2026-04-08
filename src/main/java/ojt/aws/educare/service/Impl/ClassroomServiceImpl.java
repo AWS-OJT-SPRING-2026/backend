@@ -3,6 +3,7 @@ package ojt.aws.educare.service.Impl;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.ClassroomCreateRequest;
 import ojt.aws.educare.dto.request.ClassroomUpdateRequest;
 import ojt.aws.educare.dto.request.ExportReportRequest;
@@ -26,7 +27,6 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -79,6 +79,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     SubmissionRepository submissionRepository;
     AttendanceRepository attendanceRepository;
     S3UploadService s3UploadService;
+    CurrentUserProvider currentUserProvider;
 
     ClassroomMapper classroomMapper;
     ClassMemberMapper classMemberMapper;
@@ -87,9 +88,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     @Override
     public ApiResponse<PageResponse<ClassroomResponse>> getAllClassrooms(int page, int size) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User currentUser = currentUserProvider.getCurrentUser();
 
         String roleName = currentUser.getRole() != null && currentUser.getRole().getRoleName() != null
                 ? currentUser.getRole().getRoleName().toUpperCase(Locale.ROOT)
@@ -320,9 +319,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<TeacherClassroomOptionResponse>> getMyClassroomOptions() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User currentUser = currentUserProvider.getCurrentUser();
 
         Teacher teacher = teacherRepository.findByUser(currentUser)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_IS_NOT_TEACHER));
@@ -844,9 +841,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     }
 
     private User getCurrentUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        return currentUserProvider.getCurrentUser();
     }
 
     private void ensureTeacherCanAccessClassroom(Classroom classroom, User currentUser) {

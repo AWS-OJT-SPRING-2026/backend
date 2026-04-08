@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.*;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.PageResponse;
@@ -16,13 +17,13 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.UserMapper;
 import ojt.aws.educare.repository.*;
+import ojt.aws.educare.service.CognitoIdentityService;
 import ojt.aws.educare.service.EmailService;
 import ojt.aws.educare.service.S3UploadService;
 import ojt.aws.educare.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +50,8 @@ public class UserServiceImpl implements UserService {
 
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
+    CurrentUserProvider currentUserProvider;
+    CognitoIdentityService cognitoIdentityService;
 
     @Override
     public ApiResponse<UserResponse> registerUser(UserRegisterRequest request) {
@@ -121,19 +124,33 @@ public class UserServiceImpl implements UserService {
         Role role = roleRepository.findByRoleName("TEACHER")
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
-        User user = userMapper.toUser(request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(role);
-        user.setStatus("ACTIVE");
-        User savedUser = userRepository.save(user);
+        String cognitoSub = cognitoIdentityService.createUser(
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getFullName(),
+                role.getRoleName()
+        );
 
-        Teacher teacher = userMapper.toTeacher(request);
-        teacher.setUser(savedUser);
-        teacherRepository.save(teacher);
+        try {
+            User user = userMapper.toUser(request);
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setRole(role);
+            user.setStatus("ACTIVE");
+            user.setCognitoSub(cognitoSub);
+            User savedUser = userRepository.save(user);
 
-        UserResponse userResponse = userMapper.toUserResponse(savedUser);
-        resolveAvatar(userResponse);
-        return ApiResponse.success("Tạo tài khoản Giáo viên thành công", userResponse);
+            Teacher teacher = userMapper.toTeacher(request);
+            teacher.setUser(savedUser);
+            teacherRepository.save(teacher);
+
+            UserResponse userResponse = userMapper.toUserResponse(savedUser);
+            resolveAvatar(userResponse);
+            return ApiResponse.success("Tạo tài khoản Giáo viên thành công", userResponse);
+        } catch (RuntimeException ex) {
+            cognitoIdentityService.deleteUser(request.getUsername());
+            throw ex;
+        }
     }
 
     @Override
@@ -147,25 +164,39 @@ public class UserServiceImpl implements UserService {
         Role role = roleRepository.findByRoleName("STUDENT")
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
-        User user = userMapper.toUser(request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(role);
-        user.setStatus("ACTIVE");
+        String cognitoSub = cognitoIdentityService.createUser(
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getFullName(),
+                role.getRoleName()
+        );
 
-        if (avatar != null && !avatar.isEmpty()) {
-            String avatarUrl = s3UploadService.uploadFile(avatar);
-            user.setAvatarUrl(avatarUrl);
+        try {
+            User user = userMapper.toUser(request);
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setRole(role);
+            user.setStatus("ACTIVE");
+            user.setCognitoSub(cognitoSub);
+
+            if (avatar != null && !avatar.isEmpty()) {
+                String avatarUrl = s3UploadService.uploadFile(avatar);
+                user.setAvatarUrl(avatarUrl);
+            }
+
+            User savedUser = userRepository.save(user);
+
+            Student student = userMapper.toStudent(request);
+            student.setUser(savedUser);
+            Student savedStudent = studentRepository.save(student);
+
+            StudentResponse studentResponse = userMapper.toStudentResponse(savedStudent);
+            resolveAvatar(studentResponse);
+            return ApiResponse.success("Tạo tài khoản Học sinh thành công", studentResponse);
+        } catch (RuntimeException ex) {
+            cognitoIdentityService.deleteUser(request.getUsername());
+            throw ex;
         }
-
-        User savedUser = userRepository.save(user);
-
-        Student student = userMapper.toStudent(request);
-        student.setUser(savedUser);
-        Student savedStudent = studentRepository.save(student);
-
-        StudentResponse studentResponse = userMapper.toStudentResponse(savedStudent);
-        resolveAvatar(studentResponse);
-        return ApiResponse.success("Tạo tài khoản Học sinh thành công", studentResponse);
     }
 
     @Override
@@ -210,6 +241,7 @@ public class UserServiceImpl implements UserService {
         userMapper.updateTeacherFromRequest(teacher, request);
 
         userRepository.save(user);
+        cognitoIdentityService.updateUserProfile(user);
         UserResponse userResponse = userMapper.toUserResponse(user);
         resolveAvatar(userResponse);
         return ApiResponse.success("Cập nhật thông tin Giáo viên thành công", userResponse);
@@ -242,6 +274,7 @@ public class UserServiceImpl implements UserService {
         }
 
         userRepository.save(user);
+        cognitoIdentityService.updateUserProfile(user);
         StudentResponse studentResponse = userMapper.toStudentResponse(student);
         resolveAvatar(studentResponse);
         return ApiResponse.success("Cập nhật thông tin Học sinh thành công", studentResponse);
@@ -253,9 +286,9 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        String currentLoggedInUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = currentUserProvider.getCurrentUser();
 
-        if (user.getUsername().equals(currentLoggedInUsername)) {
+        if (user.getUserID().equals(currentUser.getUserID())) {
             throw new AppException(ErrorCode.DELETE_SELF_INVALID);
         }
 
@@ -265,9 +298,11 @@ public class UserServiceImpl implements UserService {
 
         String message;
         if ("ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            cognitoIdentityService.lockUser(user.getUsername());
             user.setStatus("LOCKED");
             message = "Đã khóa tài khoản thành công";
         } else {
+            cognitoIdentityService.unlockUser(user.getUsername());
             user.setStatus("ACTIVE");
             message = "Đã mở khóa tài khoản thành công";
         }
@@ -291,6 +326,8 @@ public class UserServiceImpl implements UserService {
             s3UploadService.deleteFileFromUrl(user.getAvatarUrl());
         }
 
+        cognitoIdentityService.deleteUser(user.getUsername());
+
         userRepository.delete(user);
 
         return ApiResponse.success("Đã xóa vĩnh viễn tài khoản khỏi hệ thống", null);
@@ -298,11 +335,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ApiResponse<Void> updateLastActive() {
-        String currentUsername = org.springframework.security.core.context.SecurityContextHolder.getContext()
-                .getAuthentication().getName();
-
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         user.setLastActiveAt(LocalDateTime.now());
         userRepository.save(user);
@@ -314,6 +347,8 @@ public class UserServiceImpl implements UserService {
     public ApiResponse<String> forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        cognitoIdentityService.resetPassword(user.getUsername());
 
         String otpCode = generateOtp();
 
@@ -351,6 +386,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public ApiResponse<String> resetPassword(ResetPasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.PASSWORDS_NOT_MATCH);
@@ -371,6 +407,7 @@ public class UserServiceImpl implements UserService {
         User user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        cognitoIdentityService.changePassword(user, request.getNewPassword());
 
         resetToken.setUsed(true); // danh dau da su dung
         passwordResetTokenRepository.save(resetToken);
@@ -382,9 +419,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public ApiResponse<String> uploadAvatar(MultipartFile file) {
         // 1. Lấy thông tin người dùng đang đăng nhập
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         // 2. Upload ảnh lên S3
         String avatarUrl = s3UploadService.uploadFile(file);
@@ -398,10 +433,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ApiResponse<Object> getMyProfile() {
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         String roleName = user.getRole().getRoleName().toUpperCase();
 
@@ -424,10 +456,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public ApiResponse<StudentResponse> updateMyStudentProfile(StudentUpdateRequest request, MultipartFile newAvatar) {
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.EMAIL_EXISTED);
@@ -448,6 +477,7 @@ public class UserServiceImpl implements UserService {
         }
 
         userRepository.save(user);
+        cognitoIdentityService.updateUserProfile(user);
         StudentResponse studentResponse = userMapper.toStudentResponse(student);
         resolveAvatar(studentResponse);
         return ApiResponse.success("Cập nhật hồ sơ cá nhân thành công", studentResponse);
@@ -456,9 +486,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public ApiResponse<String> initChangePassword(ChangePasswordInitRequest request) {
         // Lấy thông tin user từ Token đang đăng nhập
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         // 1. Kiểm tra giới hạn 7 ngày
         if (user.getLastPasswordChangeAt() != null &&
@@ -498,9 +526,7 @@ public class UserServiceImpl implements UserService {
             throw new AppException(ErrorCode.PASSWORDS_NOT_MATCH);
         }
 
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = currentUserProvider.getCurrentUser();
 
         // Kiểm tra mã OTP
         PasswordResetToken resetToken = passwordResetTokenRepository
@@ -521,6 +547,7 @@ public class UserServiceImpl implements UserService {
         // CHỐT THỜI GIAN: Đánh dấu thời điểm đổi mật khẩu thành công để bắt đầu đếm 7 ngày
         user.setLastPasswordChangeAt(LocalDateTime.now());
         userRepository.save(user);
+        cognitoIdentityService.changePassword(user, request.getNewPassword());
 
         // Hủy OTP
         resetToken.setUsed(true);

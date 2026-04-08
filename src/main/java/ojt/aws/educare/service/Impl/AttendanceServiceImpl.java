@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.AttendanceRequest;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.AttendanceStudentResponse;
@@ -14,9 +15,7 @@ import ojt.aws.educare.mapper.AttendanceMapper;
 import ojt.aws.educare.repository.AttendanceRepository;
 import ojt.aws.educare.repository.StudentRepository;
 import ojt.aws.educare.repository.TimetableRepository;
-import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.service.AttendanceService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,7 @@ import java.util.List;
 @Slf4j
 public class AttendanceServiceImpl implements AttendanceService {
     TimetableRepository timetableRepository;
-    UserRepository userRepository;
+    CurrentUserProvider currentUserProvider;
     AttendanceRepository attendanceRepository;
     StudentRepository studentRepository;
 
@@ -41,9 +40,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         Timetable timetable = timetableRepository.findById(timetableID)
                 .orElseThrow(() -> new AppException(ErrorCode.TIMETABLE_NOT_FOUND));
 
-        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User currentUser = currentUserProvider.getCurrentUser();
         String role = currentUser.getRole().getRoleName().toUpperCase();
 
         if ("TEACHER".equals(role)) {

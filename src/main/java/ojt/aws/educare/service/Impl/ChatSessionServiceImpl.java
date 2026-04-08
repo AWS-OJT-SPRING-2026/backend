@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.request.ChatMessageRequest;
 import ojt.aws.educare.dto.request.ChatSessionUpsertRequest;
 import ojt.aws.educare.dto.response.ApiResponse;
@@ -19,9 +20,7 @@ import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.ChatSessionMapper;
 import ojt.aws.educare.repository.AIChatSessionRepository;
 import ojt.aws.educare.repository.StudentRepository;
-import ojt.aws.educare.repository.UserRepository;
 import ojt.aws.educare.service.ChatSessionService;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +32,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ChatSessionServiceImpl implements ChatSessionService {
     AIChatSessionRepository aiChatSessionRepository;
-    UserRepository userRepository;
+    CurrentUserProvider currentUserProvider;
     StudentRepository studentRepository;
     ChatSessionMapper chatSessionMapper;
     ObjectMapper objectMapper;
@@ -124,10 +123,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
     }
 
     private Student getCurrentStudent() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User currentUser = currentUserProvider.getCurrentUser();
 
         return studentRepository.findByUser_UserID(currentUser.getUserID())
                 .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));

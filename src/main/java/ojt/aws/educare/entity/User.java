@@ -71,4 +71,14 @@ public class User {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     Student student;
+
+    // ── NEW: AWS Cognito user identifier ─────────────────────────────────────
+    // Populated by CognitoUserSyncFilter on the first authenticated request.
+    // Used to link Cognito identities to existing local accounts and to prevent
+    // duplicate JIT provisioning when a user's email changes in Cognito.
+    //
+    // DDL note: hibernate.ddl-auto=update will ADD this column automatically on
+    // the next application start — no manual migration required.
+    @Column(name = "CognitoSub", unique = true)
+    String cognitoSub;
 }
