@@ -21,6 +21,7 @@ public class AssignmentResponse {
     LocalDateTime endTime;
     LocalDateTime deadline;
     Integer durationMinutes;
+    String displayAnswerMode;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
     Integer classroomId;

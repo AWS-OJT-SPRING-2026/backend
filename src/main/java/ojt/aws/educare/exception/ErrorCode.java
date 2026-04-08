@@ -121,6 +121,7 @@ public enum ErrorCode {
     ASSIGNMENT_RESULT_NOT_FOUND(1423, "Bạn chưa nộp bài cho đề kiểm tra này", HttpStatus.NOT_FOUND),
     ASSIGNMENT_QUESTION_NOT_FOUND(1424, "Câu hỏi không thuộc đề kiểm tra", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION(1425, "Đáp án không thuộc câu hỏi", HttpStatus.BAD_REQUEST),
+    ASSIGNMENT_DISPLAY_MODE_INVALID(1426, "Chế độ hiển thị đáp án không hợp lệ", HttpStatus.BAD_REQUEST),
 
     // EXPORT REPORT ERRORS
     EXPORT_FORMAT_INVALID(1500, "Định dạng xuất không hợp lệ. Chỉ chấp nhận EXCEL, PDF, hoặc CSV", HttpStatus.BAD_REQUEST),

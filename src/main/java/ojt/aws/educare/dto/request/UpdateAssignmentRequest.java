@@ -19,5 +19,6 @@ public class UpdateAssignmentRequest {
     LocalDateTime endTime;
     LocalDateTime deadline;
     Integer durationMinutes;
+    String displayAnswerMode;
     List<Integer> questionIds;
 }

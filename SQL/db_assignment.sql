@@ -10,6 +10,7 @@ CREATE TABLE assignments (
     end_time TIMESTAMP(6),
     deadline TIMESTAMP(6),
     duration_minutes INTEGER,
+    display_answer_mode VARCHAR(40) NOT NULL DEFAULT 'IMMEDIATE',
     status VARCHAR(50),
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),

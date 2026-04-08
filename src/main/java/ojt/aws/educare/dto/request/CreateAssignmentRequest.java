@@ -40,6 +40,8 @@ public class CreateAssignmentRequest {
     @Positive(message = "Thời gian làm bài phải lớn hơn 0")
     Integer durationMinutes;
 
+    String displayAnswerMode;
+
     @NotEmpty(message = "Phải có ít nhất 1 câu hỏi")
     List<Integer> questionIds;
 }

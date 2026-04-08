@@ -56,6 +56,11 @@ public class Assignment {
     @Column(name = "duration_minutes")
     Integer durationMinutes;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "display_answer_mode", length = 40, nullable = false)
+    @Builder.Default
+    DisplayAnswerMode displayAnswerMode = DisplayAnswerMode.IMMEDIATE;
+
     @Column(name = "status", length = 50)
     String status;
 

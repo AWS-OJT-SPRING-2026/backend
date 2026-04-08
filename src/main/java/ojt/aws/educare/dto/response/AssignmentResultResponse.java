@@ -24,6 +24,11 @@ public class AssignmentResultResponse {
     Integer timeTaken;
     LocalDateTime submitTime;
     String submissionStatus;
+    String displayAnswerMode;
+    Boolean canViewResult;
+    Boolean canViewDetailedAnswers;
+    LocalDateTime revealAt;
+    String visibilityMessage;
     List<QuestionResult> questions;
 
     @Data

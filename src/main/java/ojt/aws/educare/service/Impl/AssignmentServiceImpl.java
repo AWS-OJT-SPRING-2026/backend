@@ -37,6 +37,9 @@ public class AssignmentServiceImpl implements AssignmentService {
     private static final String SUBMISSION_STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String SUBMISSION_STATUS_SUBMITTED = "SUBMITTED";
     private static final String SUBMISSION_STATUS_MISSING = "MISSING";
+    private static final String DISPLAY_ANSWER_MODE_IMMEDIATE = "IMMEDIATE";
+    private static final String DISPLAY_ANSWER_MODE_AFTER_DEADLINE = "AFTER_DEADLINE";
+    private static final String DISPLAY_ANSWER_MODE_RESULT_ONLY_IMMEDIATE = "RESULTONLYIMMEDIATE";
 
     AssignmentRepository assignmentRepository;
     QuestionRepository questionRepository;
@@ -104,6 +107,66 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new AppException(ErrorCode.ASSIGNMENT_FORMAT_INVALID);
         }
         return normalized;
+    }
+
+    private DisplayAnswerMode normalizeDisplayAnswerMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return DisplayAnswerMode.IMMEDIATE;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case DISPLAY_ANSWER_MODE_IMMEDIATE -> DisplayAnswerMode.IMMEDIATE;
+            case DISPLAY_ANSWER_MODE_AFTER_DEADLINE -> DisplayAnswerMode.AFTER_DEADLINE;
+            case DISPLAY_ANSWER_MODE_RESULT_ONLY_IMMEDIATE -> DisplayAnswerMode.RESULTONLYIMMEDIATE;
+            default -> throw new AppException(ErrorCode.ASSIGNMENT_DISPLAY_MODE_INVALID);
+        };
+    }
+
+    private DisplayAnswerMode resolveDisplayAnswerMode(Assignment assignment) {
+        return assignment.getDisplayAnswerMode() != null
+                ? assignment.getDisplayAnswerMode()
+                : DisplayAnswerMode.IMMEDIATE;
+    }
+
+    private record ResultVisibility(
+            DisplayAnswerMode mode,
+            boolean canViewResult,
+            boolean canViewDetailedAnswers,
+            LocalDateTime revealAt,
+            String visibilityMessage
+    ) {
+    }
+
+    private ResultVisibility resolveResultVisibility(Assignment assignment, LocalDateTime now) {
+        DisplayAnswerMode mode = resolveDisplayAnswerMode(assignment);
+        LocalDateTime revealAt = resolveAssignmentDueTime(assignment);
+        boolean afterRevealTime = revealAt == null || !now.isBefore(revealAt);
+
+        return switch (mode) {
+            case IMMEDIATE -> new ResultVisibility(mode, true, true, revealAt, null);
+            case AFTER_DEADLINE -> {
+                String message = afterRevealTime ? null : "Kết quả và đáp án sẽ được hiển thị sau thời hạn nộp bài.";
+                yield new ResultVisibility(mode, afterRevealTime, afterRevealTime, revealAt, message);
+            }
+            case RESULTONLYIMMEDIATE -> {
+                String message = afterRevealTime ? null : "Đáp án chi tiết sẽ được hiển thị sau thời hạn nộp bài.";
+                yield new ResultVisibility(mode, true, afterRevealTime, revealAt, message);
+            }
+        };
+    }
+
+    private SubmissionResponse maskSubmissionForStudent(SubmissionResponse response, Assignment assignment, LocalDateTime now) {
+        if (assignment == null) {
+            return response;
+        }
+        ResultVisibility visibility = resolveResultVisibility(assignment, now);
+        if (!visibility.canViewResult()) {
+            response.setScore(null);
+        }
+        if (!visibility.canViewDetailedAnswers()) {
+            response.setAnswers(Collections.emptyList());
+        }
+        return response;
     }
 
     private void validateTimeByAssignmentType(
@@ -393,7 +456,12 @@ public class AssignmentServiceImpl implements AssignmentService {
             Submission submission = submissionByAssignmentId.get(resp.getAssignmentID());
             if (submission != null) {
                 resp.setSubmissionStatus(resolveSubmissionStatus(submission));
-                resp.setScore(submission.getScore());
+                Assignment assignment = submission.getAssignment();
+                if (assignment != null && resolveResultVisibility(assignment, LocalDateTime.now()).canViewResult()) {
+                    resp.setScore(submission.getScore());
+                } else {
+                    resp.setScore(null);
+                }
             }
         });
         return responses;
@@ -448,6 +516,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .title(request.getTitle())
                 .assignmentType(assignmentType)
                 .format(format)
+                .displayAnswerMode(normalizeDisplayAnswerMode(request.getDisplayAnswerMode()))
                 .status("DRAFT")
                 .build();
 
@@ -486,12 +555,16 @@ public class AssignmentServiceImpl implements AssignmentService {
         Integer durationMinutes = request.getDurationMinutes() != null
                 ? request.getDurationMinutes()
                 : assignment.getDurationMinutes();
+        DisplayAnswerMode displayAnswerMode = request.getDisplayAnswerMode() != null
+                ? normalizeDisplayAnswerMode(request.getDisplayAnswerMode())
+                : resolveDisplayAnswerMode(assignment);
 
         validateTimeByAssignmentType(assignmentType, startTime, endTime, deadline, durationMinutes);
 
         if (request.getTitle() != null) assignment.setTitle(request.getTitle());
         assignment.setAssignmentType(assignmentType);
         assignment.setFormat(format);
+        assignment.setDisplayAnswerMode(displayAnswerMode);
         applyTimeByAssignmentType(assignment, assignmentType, startTime, endTime, deadline, durationMinutes);
 
         if (request.getQuestionIds() != null) {
@@ -1056,7 +1129,11 @@ public class AssignmentServiceImpl implements AssignmentService {
         submission.setSubmissionStatus(SUBMISSION_STATUS_SUBMITTED);
         submissionRepository.save(submission);
 
-        SubmissionResponse response = buildSubmissionResponse(submission, submissionAnswers);
+        SubmissionResponse response = maskSubmissionForStudent(
+                buildSubmissionResponse(submission, submissionAnswers),
+                assignment,
+                now
+        );
 
         return ApiResponse.success("Nộp bài thành công", response);
     }
@@ -1073,7 +1150,12 @@ public class AssignmentServiceImpl implements AssignmentService {
         List<SubmissionAnswer> answers = submissionAnswerRepository
                 .findBySubmission_SubmissionID(submission.getSubmissionID());
 
-        SubmissionResponse response = buildSubmissionResponse(submission, answers);
+        Assignment assignment = submission.getAssignment();
+        SubmissionResponse response = maskSubmissionForStudent(
+                buildSubmissionResponse(submission, answers),
+                assignment,
+                LocalDateTime.now()
+        );
 
         return ApiResponse.success("Lấy bài nộp thành công", response);
     }
@@ -1113,7 +1195,11 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .map(s -> {
                     List<SubmissionAnswer> answers = submissionAnswerRepository
                             .findBySubmission_SubmissionID(s.getSubmissionID());
-                    return buildSubmissionResponse(s, answers);
+                    return maskSubmissionForStudent(
+                            buildSubmissionResponse(s, answers),
+                            s.getAssignment(),
+                            LocalDateTime.now()
+                    );
                 })
                 .toList();
 
@@ -1197,6 +1283,21 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (isMissed) {
             response.setScore(BigDecimal.ZERO);
             response.setCorrectCount(0);
+        }
+
+        ResultVisibility visibility = resolveResultVisibility(assignment, LocalDateTime.now());
+        response.setDisplayAnswerMode(visibility.mode().name());
+        response.setCanViewResult(visibility.canViewResult());
+        response.setCanViewDetailedAnswers(visibility.canViewDetailedAnswers());
+        response.setRevealAt(visibility.revealAt());
+        response.setVisibilityMessage(visibility.visibilityMessage());
+
+        if (!visibility.canViewResult()) {
+            response.setScore(null);
+            response.setCorrectCount(null);
+        }
+        if (!visibility.canViewDetailedAnswers()) {
+            response.setQuestions(Collections.emptyList());
         }
 
         return ApiResponse.success("Lấy kết quả bài làm thành công", response);
