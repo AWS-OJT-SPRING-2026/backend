@@ -29,10 +29,12 @@ import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 import java.util.Locale;
+import lombok.extern.slf4j.Slf4j;
 
 import ojt.aws.educare.entity.User;
 import ojt.aws.educare.repository.UserRepository;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -215,8 +217,15 @@ public class SecurityConfig {
             }
             String email = jwt.getClaimAsString("email");
 
+            // Wrap syncUser in try/catch: any DB exception must NOT crash JWT
+            // authentication (which would produce a spurious 401 to the client).
             if (sub != null && !sub.isBlank()) {
-                cognitoUserSyncService.syncUser(sub, username, email, cognitoRole);
+                try {
+                    cognitoUserSyncService.syncUser(sub, username, email, cognitoRole);
+                } catch (Exception ex) {
+                    log.error("[SecurityConfig] syncUser failed for sub={} — proceeding with DB lookup: {}",
+                            sub, ex.getMessage());
+                }
             }
 
             User localUser = null;
@@ -231,7 +240,11 @@ public class SecurityConfig {
             }
 
             if (localUser == null || localUser.getRole() == null || localUser.getRole().getRoleName() == null) {
-                return List.of();
+                // User not yet in local DB (JIT provisioning may have failed).
+                // Grant ROLE_STUDENT so the JWT is still considered authenticated;
+                // CurrentUserProvider will re-check and surface a proper error if needed.
+                log.warn("[SecurityConfig] Local user not found for sub={} — granting temporary ROLE_STUDENT", sub);
+                return List.<GrantedAuthority>of(new SimpleGrantedAuthority("ROLE_STUDENT"));
             }
 
             String springRole = "ROLE_" + localUser.getRole().getRoleName().trim().toUpperCase(Locale.ROOT);

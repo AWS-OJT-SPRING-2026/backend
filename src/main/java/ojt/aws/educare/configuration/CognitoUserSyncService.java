@@ -9,6 +9,7 @@ import ojt.aws.educare.repository.RoleRepository;
 import ojt.aws.educare.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -99,7 +100,20 @@ public class CognitoUserSyncService {
         // ── 4. JIT provisioning: brand-new Cognito user ───────────────────────
         Role role = resolveRole(cognitoRole);
         if (role == null) {
-            log.error("[CognitoSync] Cannot provision user sub={} — role '{}' not found in DB", cognitoSub, cognitoRole);
+            // Last-resort: try every role name in descending privilege so the user
+            // at least gets a valid row. Without a row, CurrentUserProvider throws
+            // USER_NOT_FOUND which maps to HTTP 401 — worse than a wrong role.
+            for (String fallback : List.of("STUDENT", "TEACHER", "ADMIN")) {
+                role = roleRepository.findByRoleName(fallback).orElse(null);
+                if (role != null) {
+                    log.warn("[CognitoSync] Resolved role '{}' not in DB; provisioning sub={} with fallback role {}",
+                            cognitoRole, cognitoSub, fallback);
+                    break;
+                }
+            }
+        }
+        if (role == null) {
+            log.error("[CognitoSync] No roles exist in DB — cannot provision user sub={}", cognitoSub);
             return;
         }
 
