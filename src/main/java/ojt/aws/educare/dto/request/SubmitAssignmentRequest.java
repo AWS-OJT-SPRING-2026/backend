@@ -23,6 +23,8 @@ public class SubmitAssignmentRequest {
     @NotEmpty(message = "INVALID_KEY")
     List<AnswerItem> answers;
 
+    Integer violationCount;
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

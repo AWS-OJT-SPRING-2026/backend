@@ -41,6 +41,7 @@ public class AssignmentReportResponse {
         LocalDateTime submitTime;
         String submissionStatus;
         String submissionTimingStatus;
+        Integer violationCount;
     }
 
     @Data

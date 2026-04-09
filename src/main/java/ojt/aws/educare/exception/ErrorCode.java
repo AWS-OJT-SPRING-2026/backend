@@ -122,12 +122,16 @@ public enum ErrorCode {
     ASSIGNMENT_QUESTION_NOT_FOUND(1424, "Câu hỏi không thuộc đề kiểm tra", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_ANSWER_NOT_MATCH_QUESTION(1425, "Đáp án không thuộc câu hỏi", HttpStatus.BAD_REQUEST),
     ASSIGNMENT_DISPLAY_MODE_INVALID(1426, "Chế độ hiển thị đáp án không hợp lệ", HttpStatus.BAD_REQUEST),
+    QUIZ_DRAFT_NOT_FOUND(1427, "Không tìm thấy bản nháp cho bài kiểm tra này", HttpStatus.NOT_FOUND),
+    QUIZ_DRAFT_QUESTION_ID_REQUIRED(1428, "Bản nháp yêu cầu id câu hỏi phải có giá trị", HttpStatus.BAD_REQUEST),
+    QUIZ_DRAFT_CURRENT_ANSWER_REQUIRED(1429, "Bản nháp yêu cầu câu tr lời phải có giá trị", HttpStatus.BAD_REQUEST),
+    QUIZ_DRAFT_QUESTION_ANSWER_REQUIRED(1430, "Bản nháp yêu cầu câu trả lời có ít nhất một đáp án", HttpStatus.BAD_REQUEST),
 
     // EXPORT REPORT ERRORS
     EXPORT_FORMAT_INVALID(1500, "Định dạng xuất không hợp lệ. Chỉ chấp nhận EXCEL, PDF, hoặc CSV", HttpStatus.BAD_REQUEST),
     EXPORT_DATA_TYPE_INVALID(1501, "Loại dữ liệu xuất không hợp lệ. Chỉ chấp nhận GRADEBOOK, ATTENDANCE, hoặc PROGRESS", HttpStatus.BAD_REQUEST),
     EXPORT_TIME_RANGE_INVALID(1502, "Khoảng thời gian không hợp lệ. Chỉ chấp nhận THIS_WEEK, THIS_MONTH, hoặc CURRENT_SEMESTER", HttpStatus.BAD_REQUEST),
-    EXPORT_DATA_TYPES_REQUIRED(1503, "Vui lòng chọn ít nhất một loại dữ liệu để xuất", HttpStatus.BAD_REQUEST);
+    EXPORT_DATA_TYPES_REQUIRED(1503, "Vui lòng chọn ít nhất một loại dữ liệu để xuất", HttpStatus.BAD_REQUEST),;
 
     private int code;
     private String message;

@@ -49,6 +49,10 @@ public class Submission {
     LocalDateTime expiredAt;
 
     @Builder.Default
+    @Column(name = "violation_count")
+    Integer violationCount = 0;
+
+    @Builder.Default
     @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

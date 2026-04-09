@@ -56,7 +56,8 @@ public class AssignmentServiceImpl implements AssignmentService {
     QuestionMapper questionMapper;
     SubmissionMapper submissionMapper;
 
-    private List<SubmissionResponse.SubmissionAnswerDetail> buildSubmissionAnswerDetails(List<SubmissionAnswer> answers) {
+    private List<SubmissionResponse.SubmissionAnswerDetail> buildSubmissionAnswerDetails(
+            List<SubmissionAnswer> answers) {
         return answers.stream().map(submissionMapper::toSubmissionAnswerDetail).toList();
     }
 
@@ -74,8 +75,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .collect(java.util.stream.Collectors.toMap(
                         a -> a.getQuestion().getId(),
                         a -> a,
-                        (existing, ignored) -> existing
-                ));
+                        (existing, ignored) -> existing));
     }
 
     private User getCurrentUser() {
@@ -133,8 +133,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             boolean canViewResult,
             boolean canViewDetailedAnswers,
             LocalDateTime revealAt,
-            String visibilityMessage
-    ) {
+            String visibilityMessage) {
     }
 
     private ResultVisibility resolveResultVisibility(Assignment assignment, LocalDateTime now) {
@@ -155,7 +154,8 @@ public class AssignmentServiceImpl implements AssignmentService {
         };
     }
 
-    private SubmissionResponse maskSubmissionForStudent(SubmissionResponse response, Assignment assignment, LocalDateTime now) {
+    private SubmissionResponse maskSubmissionForStudent(SubmissionResponse response, Assignment assignment,
+            LocalDateTime now) {
         if (assignment == null) {
             return response;
         }
@@ -174,8 +174,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             LocalDateTime startTime,
             LocalDateTime endTime,
             LocalDateTime deadline,
-            Integer durationMinutes
-    ) {
+            Integer durationMinutes) {
         if (durationMinutes == null) {
             throw new AppException(ErrorCode.ASSIGNMENT_DURATION_REQUIRED);
         }
@@ -207,8 +206,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             LocalDateTime startTime,
             LocalDateTime endTime,
             LocalDateTime deadline,
-            Integer durationMinutes
-    ) {
+            Integer durationMinutes) {
         assignment.setDurationMinutes(durationMinutes);
 
         if (ASSIGNMENT_TYPE_TEST.equals(assignmentType)) {
@@ -251,15 +249,9 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new AppException(ErrorCode.ASSIGNMENT_DURATION_INVALID);
         }
 
-        LocalDateTime calculatedEnd = startedAt.plusMinutes(assignment.getDurationMinutes());
-        LocalDateTime hardEnd = ASSIGNMENT_TYPE_TEST.equals(assignment.getAssignmentType())
-                ? assignment.getEndTime()
-                : assignment.getDeadline();
-
-        if (hardEnd == null) {
-            return calculatedEnd;
-        }
-        return calculatedEnd.isBefore(hardEnd) ? calculatedEnd : hardEnd;
+        // Logic mới: Thời lượng làm bài phải tính theo start_time_thực_tế_của_học_sinh + duration
+        // Không cắt ngắn theo end_time để đảm bảo học sinh được làm đủ thời gian
+        return startedAt.plusMinutes(assignment.getDurationMinutes());
     }
 
     private Map<Integer, List<AnswerResponse>> mapAnswersByQuestionId(List<Integer> questionIds) {
@@ -277,9 +269,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                                         .content(a.getContent())
                                         .isCorrect(a.getIsCorrect())
                                         .build(),
-                                java.util.stream.Collectors.toList()
-                        )
-                ));
+                                java.util.stream.Collectors.toList())));
     }
 
     private List<QuestionPreviewResponse> buildQuestionPreviewsByIds(List<Integer> questionIds) {
@@ -287,13 +277,12 @@ public class AssignmentServiceImpl implements AssignmentService {
             return Collections.emptyList();
         }
 
-        List<QuestionRepository.QuestionRandomProjection> projections =
-                questionRepository.findQuestionPreviewDataByIds(questionIds);
+        List<QuestionRepository.QuestionRandomProjection> projections = questionRepository
+                .findQuestionPreviewDataByIds(questionIds);
         Map<Integer, QuestionRepository.QuestionRandomProjection> projectionMap = projections.stream()
                 .collect(java.util.stream.Collectors.toMap(
                         QuestionRepository.QuestionRandomProjection::getId,
-                        p -> p
-                ));
+                        p -> p));
 
         Map<Integer, List<AnswerResponse>> answersByQuestionId = mapAnswersByQuestionId(questionIds);
 
@@ -302,8 +291,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .filter(Objects::nonNull)
                 .map(p -> questionMapper.toPreviewResponse(
                         p,
-                        answersByQuestionId.getOrDefault(p.getId(), Collections.emptyList())
-                ))
+                        answersByQuestionId.getOrDefault(p.getId(), Collections.emptyList())))
                 .toList();
     }
 
@@ -438,7 +426,8 @@ public class AssignmentServiceImpl implements AssignmentService {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private List<AssignmentResponse> attachStudentSubmissionSnapshot(User currentUser, List<AssignmentResponse> responses) {
+    private List<AssignmentResponse> attachStudentSubmissionSnapshot(User currentUser,
+            List<AssignmentResponse> responses) {
         if (responses.isEmpty()) {
             return responses;
         }
@@ -449,8 +438,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .collect(java.util.stream.Collectors.toMap(
                         s -> s.getAssignment().getAssignmentID(),
                         s -> s,
-                        (existing, ignored) -> existing
-                ));
+                        (existing, ignored) -> existing));
 
         responses.forEach(resp -> {
             Submission submission = submissionByAssignmentId.get(resp.getAssignmentID());
@@ -488,8 +476,7 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     private AssignmentDetailResponse mapAssignmentDetailWithCounts(
             Assignment assignment,
-            List<QuestionPreviewResponse> questionPreviews
-    ) {
+            List<QuestionPreviewResponse> questionPreviews) {
         int totalSubmissions = (int) submissionRepository.countByAssignment_AssignmentID(assignment.getAssignmentID());
         return assignmentMapper.toDetailResponse(assignment, questionPreviews, totalSubmissions);
     }
@@ -507,7 +494,8 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         String assignmentType = normalizeAssignmentType(request.getAssignmentType());
         String format = normalizeFormat(request.getFormat());
-        validateTimeByAssignmentType(assignmentType, request.getStartTime(), request.getEndTime(), request.getDeadline(), request.getDurationMinutes());
+        validateTimeByAssignmentType(assignmentType, request.getStartTime(), request.getEndTime(),
+                request.getDeadline(), request.getDurationMinutes());
 
         Assignment assignment = Assignment.builder()
                 .classroom(classroom)
@@ -520,7 +508,8 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .status("DRAFT")
                 .build();
 
-        applyTimeByAssignmentType(assignment, assignmentType, request.getStartTime(), request.getEndTime(), request.getDeadline(), request.getDurationMinutes());
+        applyTimeByAssignmentType(assignment, assignmentType, request.getStartTime(), request.getEndTime(),
+                request.getDeadline(), request.getDurationMinutes());
 
         assignment = assignmentRepository.save(assignment);
         replaceAssignmentQuestionLinks(assignment.getAssignmentID(), questionIds);
@@ -533,7 +522,8 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional
-    public ApiResponse<AssignmentDetailResponse> updateAssignment(Integer assignmentId, UpdateAssignmentRequest request) {
+    public ApiResponse<AssignmentDetailResponse> updateAssignment(Integer assignmentId,
+            UpdateAssignmentRequest request) {
         User currentUser = getCurrentUser();
         Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_NOT_FOUND));
@@ -561,7 +551,8 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         validateTimeByAssignmentType(assignmentType, startTime, endTime, deadline, durationMinutes);
 
-        if (request.getTitle() != null) assignment.setTitle(request.getTitle());
+        if (request.getTitle() != null)
+            assignment.setTitle(request.getTitle());
         assignment.setAssignmentType(assignmentType);
         assignment.setFormat(format);
         assignment.setDisplayAnswerMode(displayAnswerMode);
@@ -632,8 +623,7 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         return ApiResponse.success(
                 reopening ? "Mở lại đề kiểm tra thành công" : "Đóng đề kiểm tra thành công",
-                mapAssignmentResponseWithCounts(assignment)
-        );
+                mapAssignmentResponseWithCounts(assignment));
     }
 
     @Override
@@ -655,7 +645,8 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Transactional(readOnly = true)
     public ApiResponse<List<AssignmentResponse>> getMyAssignments() {
         User currentUser = getCurrentUser();
-        List<Assignment> assignments = assignmentRepository.findByUser_UserIDOrderByCreatedAtDesc(currentUser.getUserID());
+        List<Assignment> assignments = assignmentRepository
+                .findByUser_UserIDOrderByCreatedAtDesc(currentUser.getUserID());
         List<AssignmentResponse> responses = assignments.stream()
                 .map(this::mapAssignmentResponseWithCounts)
                 .toList();
@@ -677,7 +668,8 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(Integer bankId, Integer difficultyLevel, Integer limit) {
+    public ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(Integer bankId, Integer difficultyLevel,
+            Integer limit) {
         if (difficultyLevel != null && (difficultyLevel < 1 || difficultyLevel > 3)) {
             throw new AppException(ErrorCode.INVALID_KEY);
         }
@@ -692,8 +684,8 @@ public class AssignmentServiceImpl implements AssignmentService {
             }
         }
 
-        List<QuestionRepository.QuestionRandomProjection> allQuestions =
-                questionRepository.findRandomQuestionPreviewData(bankId, difficultyLevel);
+        List<QuestionRepository.QuestionRandomProjection> allQuestions = questionRepository
+                .findRandomQuestionPreviewData(bankId, difficultyLevel);
         List<QuestionRepository.QuestionRandomProjection> mutable = new ArrayList<>(allQuestions);
         Collections.shuffle(mutable);
 
@@ -711,8 +703,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         List<QuestionPreviewResponse> result = selected.stream()
                 .map(q -> questionMapper.toPreviewResponse(
                         q,
-                        answersByQuestionId.getOrDefault(q.getId(), Collections.emptyList())
-                ))
+                        answersByQuestionId.getOrDefault(q.getId(), Collections.emptyList())))
                 .toList();
 
         return ApiResponse.success("Lấy câu hỏi ngẫu nhiên thành công", result);
@@ -757,7 +748,8 @@ public class AssignmentServiceImpl implements AssignmentService {
             }
             LocalDateTime currentSubmittedAt = current.getSubmittedAt();
             LocalDateTime nextSubmittedAt = submission.getSubmittedAt();
-            if (currentSubmittedAt == null || (nextSubmittedAt != null && nextSubmittedAt.isAfter(currentSubmittedAt))) {
+            if (currentSubmittedAt == null
+                    || (nextSubmittedAt != null && nextSubmittedAt.isAfter(currentSubmittedAt))) {
                 submissionByUserId.put(userId, submission);
             }
         }
@@ -788,6 +780,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                             .submitTime(submission.getSubmittedAt())
                             .submissionStatus(resolveSubmissionStatus(submission))
                             .submissionTimingStatus(resolveSubmissionTimingStatus(submission, assignment))
+                            .violationCount(submission.getViolationCount() != null ? submission.getViolationCount() : 0)
                             .build();
                 })
                 .sorted(Comparator.comparing(AssignmentReportResponse.StudentSubmissionSummary::getStudentName,
@@ -857,7 +850,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             Integer questionId = (Integer) row[0];
             long total = ((Number) row[1]).longValue();
             long correct = row[2] != null ? ((Number) row[2]).longValue() : 0L;
-            statsByQuestionId.put(questionId, new long[]{total, correct});
+            statsByQuestionId.put(questionId, new long[] { total, correct });
         }
 
         List<Object[]> optionSelections = submissionAnswerRepository
@@ -881,23 +874,25 @@ public class AssignmentServiceImpl implements AssignmentService {
         Map<Integer, List<Answer>> answersByQuestion = assignmentQuestionIds.isEmpty()
                 ? Collections.emptyMap()
                 : answerRepository.findByQuestion_IdIn(assignmentQuestionIds).stream()
-                .collect(java.util.stream.Collectors.groupingBy(a -> a.getQuestion().getId()));
+                        .collect(java.util.stream.Collectors.groupingBy(a -> a.getQuestion().getId()));
 
         List<AssignmentReportResponse.QuestionAnalysis> questionAnalysis = assignmentQuestionIds.stream()
                 .map(questionId -> {
                     Question question = questionById.get(questionId);
-                    long[] values = statsByQuestionId.getOrDefault(questionId, new long[]{0L, 0L});
+                    long[] values = statsByQuestionId.getOrDefault(questionId, new long[] { 0L, 0L });
                     int totalAnswered = (int) values[0];
                     int correctCount = (int) values[1];
                     double accuracy = totalAnswered > 0
                             ? roundPercent((correctCount * 100.0) / totalAnswered)
                             : 0.0;
 
-                    Map<Integer, Integer> selectedCounts = optionCountByQuestion.getOrDefault(questionId, Collections.emptyMap());
+                    Map<Integer, Integer> selectedCounts = optionCountByQuestion.getOrDefault(questionId,
+                            Collections.emptyMap());
                     List<AssignmentReportResponse.OptionStatistic> options = answersByQuestion
                             .getOrDefault(questionId, Collections.emptyList())
                             .stream()
-                            .sorted(Comparator.comparing(Answer::getLabel, Comparator.nullsLast(String::compareToIgnoreCase)))
+                            .sorted(Comparator.comparing(Answer::getLabel,
+                                    Comparator.nullsLast(String::compareToIgnoreCase)))
                             .map(answer -> {
                                 int selectedCount = selectedCounts.getOrDefault(answer.getId(), 0);
                                 boolean correct = Boolean.TRUE.equals(answer.getIsCorrect());
@@ -1056,7 +1051,14 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        if (submission.getExpiredAt() != null && now.isAfter(submission.getExpiredAt().plusSeconds(5))) {
+        // Grace period of 5 minutes after the server-side timer expires.
+        // This accommodates token refresh latency and network delays without
+        // allowing meaningful extra answering time. The quiz timer shown on
+        // the frontend is driven by attempt.expiredAt (server-controlled),
+        // so this window cannot be exploited to extend the visible countdown.
+        final int GRACE_PERIOD_SECONDS = 300;
+        if (submission.getExpiredAt() != null
+                && now.isAfter(submission.getExpiredAt().plusSeconds(GRACE_PERIOD_SECONDS))) {
             throw new AppException(ErrorCode.ASSIGNMENT_ATTEMPT_EXPIRED);
         }
 
@@ -1127,13 +1129,15 @@ public class AssignmentServiceImpl implements AssignmentService {
         submission.setTimeTaken(request.getTimeTaken());
         submission.setSubmittedAt(now);
         submission.setSubmissionStatus(SUBMISSION_STATUS_SUBMITTED);
+        if (request.getViolationCount() != null && request.getViolationCount() > 0) {
+            submission.setViolationCount(request.getViolationCount());
+        }
         submissionRepository.save(submission);
 
         SubmissionResponse response = maskSubmissionForStudent(
                 buildSubmissionResponse(submission, submissionAnswers),
                 assignment,
-                now
-        );
+                now);
 
         return ApiResponse.success("Nộp bài thành công", response);
     }
@@ -1154,8 +1158,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         SubmissionResponse response = maskSubmissionForStudent(
                 buildSubmissionResponse(submission, answers),
                 assignment,
-                LocalDateTime.now()
-        );
+                LocalDateTime.now());
 
         return ApiResponse.success("Lấy bài nộp thành công", response);
     }
@@ -1198,8 +1201,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                     return maskSubmissionForStudent(
                             buildSubmissionResponse(s, answers),
                             s.getAssignment(),
-                            LocalDateTime.now()
-                    );
+                            LocalDateTime.now());
                 })
                 .toList();
 
@@ -1230,8 +1232,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .collect(java.util.stream.Collectors.toMap(
                         sa -> sa.getQuestion().getId(),
                         sa -> sa,
-                        (existing, ignored) -> existing
-                ));
+                        (existing, ignored) -> existing));
 
         String normalizedStatus = resolveSubmissionStatus(submission);
         boolean isMissed = SUBMISSION_STATUS_MISSING.equalsIgnoreCase(normalizedStatus);
@@ -1257,8 +1258,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                     return submissionMapper.toQuestionResult(
                             submissionAnswer,
                             correctAnswer != null ? correctAnswer.getId() : null,
-                            correctAnswer != null ? correctAnswer.getContent() : null
-                    );
+                            correctAnswer != null ? correctAnswer.getContent() : null);
                 })
                 .toList();
 
@@ -1277,8 +1277,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 submission,
                 assignmentQuestionIds.size(),
                 correctCount,
-                questionResults
-        );
+                questionResults);
         response.setSubmissionStatus(isMissed ? "MISSED" : "SUBMITTED");
         if (isMissed) {
             response.setScore(BigDecimal.ZERO);
