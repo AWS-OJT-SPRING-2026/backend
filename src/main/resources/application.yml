@@ -60,3 +60,15 @@ cognito:
   app-client-id: ${COGNITO_APP_CLIENT_ID}
   user-pool-id: ${COGNITO_USER_POOL_ID}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health          # expose ONLY /actuator/health — nothing else
+  endpoint:
+    health:
+      show-details: always       # show db/disk sub-checks in response body
+  health:
+    defaults:
+      enabled: true              # keeps DataSourceHealthIndicator active
+

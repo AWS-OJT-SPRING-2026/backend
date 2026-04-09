@@ -60,6 +60,11 @@ public class SecurityConfig {
             "/users/forgot-password",
             "/users/verify-otp",
             "/users/reset-password",
+
+            // Actuator health — public so ALB/ECS health checks work without a token.
+            // Path is relative to the servlet context-path (/api), so this matches
+            // GET /api/actuator/health. Only "health" is exposed (see application.yml).
+            "/actuator/health",
     };
 
     // OLD: @Autowired CustomJwtDecoder customJwtDecoder;
