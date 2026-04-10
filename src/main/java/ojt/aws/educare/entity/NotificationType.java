@@ -1,0 +1,14 @@
+package ojt.aws.educare.entity;
+
+public enum NotificationType {
+    ASSIGNMENT_NEW,
+    ASSIGNMENT_DUE_SOON,
+    ASSIGNMENT_OVERDUE,
+    TEST_UPCOMING,
+    TEST_STARTING,
+    TEST_RESULT,
+    SCHEDULE_CHANGED,
+    TEACHER_CHANGED,
+    REMINDER_CLASS,
+    FEEDBACK_RECEIVED
+}

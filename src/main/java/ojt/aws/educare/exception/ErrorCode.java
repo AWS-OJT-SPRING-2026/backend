@@ -131,7 +131,11 @@ public enum ErrorCode {
     EXPORT_FORMAT_INVALID(1500, "Định dạng xuất không hợp lệ. Chỉ chấp nhận EXCEL, PDF, hoặc CSV", HttpStatus.BAD_REQUEST),
     EXPORT_DATA_TYPE_INVALID(1501, "Loại dữ liệu xuất không hợp lệ. Chỉ chấp nhận GRADEBOOK, ATTENDANCE, hoặc PROGRESS", HttpStatus.BAD_REQUEST),
     EXPORT_TIME_RANGE_INVALID(1502, "Khoảng thời gian không hợp lệ. Chỉ chấp nhận THIS_WEEK, THIS_MONTH, hoặc CURRENT_SEMESTER", HttpStatus.BAD_REQUEST),
-    EXPORT_DATA_TYPES_REQUIRED(1503, "Vui lòng chọn ít nhất một loại dữ liệu để xuất", HttpStatus.BAD_REQUEST),;
+    EXPORT_DATA_TYPES_REQUIRED(1503, "Vui lòng chọn ít nhất một loại dữ liệu để xuất", HttpStatus.BAD_REQUEST),
+
+    // NOTIFICATION & FEEDBACK ERRORS
+    NOTIFICATION_NOT_FOUND(1600, "Không tìm thấy thông báo", HttpStatus.NOT_FOUND),
+    FEEDBACK_NOT_FOUND(1601, "Không tìm thấy nhận xét", HttpStatus.NOT_FOUND),;
 
     private int code;
     private String message;
