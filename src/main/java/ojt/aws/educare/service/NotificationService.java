@@ -13,4 +13,6 @@ public interface NotificationService {
     ApiResponse<NotificationResponse> markAsRead(Integer notificationId);
     ApiResponse<Void> markAllAsRead();
     void createNotification(User user, NotificationType type, String title, String content, String actionUrl);
+    void notifyClassroomStudents(Integer classId, NotificationType type, String title, String content, String actionUrl);
+    void deleteByActionUrl(String actionUrl);
 }

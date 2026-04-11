@@ -11,6 +11,7 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.TimetableMapper;
 import ojt.aws.educare.repository.*;
+import ojt.aws.educare.service.NotificationService;
 import ojt.aws.educare.service.TimetableService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class TimetableServiceImpl implements TimetableService {
     UserRepository userRepository;
     AttendanceRepository attendanceRepository;
     CurrentUserProvider currentUserProvider;
+    NotificationService notificationService;
 
     TimetableMapper timetableMapper;
 
@@ -171,6 +173,15 @@ public class TimetableServiceImpl implements TimetableService {
         }
 
         timetableRepository.saveAll(timetables);
+        
+        notificationService.notifyClassroomStudents(
+                classID,
+                NotificationType.SCHEDULE_CHANGED,
+                "Lịch học được cập nhật",
+                "Lịch học lớp " + classroom.getClassName() + " đã được cập nhật lại",
+                "/student/schedule"
+        );
+
         return ApiResponse.success("Đã cập nhật hàng loạt thành công", null);
     }
 
@@ -203,6 +214,14 @@ public class TimetableServiceImpl implements TimetableService {
         timetableMapper.updateTimetableFromRequest(timetable, request);
 
         Timetable savedTimetable = timetableRepository.save(timetable);
+
+        notificationService.notifyClassroomStudents(
+                timetable.getClassroom().getClassID(),
+                NotificationType.SCHEDULE_CHANGED,
+                "Lịch học được cập nhật",
+                "Lịch học của bạn đã được cập nhật lại",
+                "/student/schedule"
+        );
 
         return ApiResponse.success("Cập nhật buổi học thành công", timetableMapper.toResponse(savedTimetable));
     }

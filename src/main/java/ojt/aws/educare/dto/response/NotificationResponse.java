@@ -16,6 +16,8 @@ public class NotificationResponse {
     NotificationType type;
     String title;
     String content;
+    LocalDateTime assignmentDeadline;
+    LocalDateTime testStartTime;
     Boolean isRead;
     String actionUrl;
     LocalDateTime createdAt;

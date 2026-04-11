@@ -41,12 +41,14 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
                    b.bankName AS bankName
             FROM Question q
             LEFT JOIN q.bank b
-            WHERE (:bankId IS NULL OR b.id = :bankId)
+            WHERE (:userId IS NULL OR b.user.userID = :userId)
+              AND (:bankId IS NULL OR b.id = :bankId)
               AND (:difficultyLevel IS NULL OR q.difficultyLevel = :difficultyLevel)
             """)
     List<QuestionRandomProjection> findRandomQuestionPreviewData(
             @Param("bankId") Integer bankId,
-            @Param("difficultyLevel") Integer difficultyLevel
+            @Param("difficultyLevel") Integer difficultyLevel,
+            @Param("userId") Integer userId
     );
 
     @Query("""

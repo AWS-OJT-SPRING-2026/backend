@@ -27,4 +27,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     long countByUser_UserIDAndIsReadFalse(Integer userId);
 
     boolean existsByUser_UserIDAndTypeAndActionUrl(Integer userId, NotificationType type, String actionUrl);
+
+    void deleteByActionUrl(String actionUrl);
 }

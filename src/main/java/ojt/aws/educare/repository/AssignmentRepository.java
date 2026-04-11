@@ -35,7 +35,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Integer>
 
     // Weekly progress: assignments (by deadline) and tests (by startTime) within a date range for given classrooms
     @Query("SELECT a FROM Assignment a WHERE a.classroom.classID IN :classroomIds " +
-           "AND a.status = 'PUBLISHED' " +
+           "AND a.status = 'ACTIVE' " +
            "AND ((a.assignmentType = 'ASSIGNMENT' AND a.deadline BETWEEN :start AND :end) " +
            "OR (a.assignmentType = 'TEST' AND a.startTime BETWEEN :start AND :end))")
     List<Assignment> findWeeklyTasksByClassroomIds(
@@ -44,13 +44,13 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Integer>
             @Param("end") LocalDateTime end);
 
     // Scheduler: assignments with deadline within a time window (for DUE_SOON / OVERDUE)
-    @Query("SELECT a FROM Assignment a WHERE a.status = 'PUBLISHED' AND a.deadline BETWEEN :start AND :end")
+    @Query("SELECT a FROM Assignment a WHERE a.status = 'ACTIVE' AND a.deadline BETWEEN :start AND :end")
     List<Assignment> findPublishedByDeadlineBetween(
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
     // Scheduler: tests with startTime within a time window (for TEST_UPCOMING / TEST_STARTING)
-    @Query("SELECT a FROM Assignment a WHERE a.assignmentType = 'TEST' AND a.status = 'PUBLISHED' " +
+    @Query("SELECT a FROM Assignment a WHERE a.assignmentType = 'TEST' AND a.status = 'ACTIVE' " +
            "AND a.startTime BETWEEN :start AND :end")
     List<Assignment> findPublishedTestsByStartTimeBetween(
             @Param("start") LocalDateTime start,

@@ -18,6 +18,7 @@ import ojt.aws.educare.mapper.WeeklyGradeStatsMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.repository.projection.WeeklyGradeAggregationProjection;
 import ojt.aws.educare.service.ClassroomService;
+import ojt.aws.educare.service.NotificationService;
 import ojt.aws.educare.service.S3UploadService;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -80,6 +81,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     AttendanceRepository attendanceRepository;
     S3UploadService s3UploadService;
     CurrentUserProvider currentUserProvider;
+    NotificationService notificationService;
 
     ClassroomMapper classroomMapper;
     ClassMemberMapper classMemberMapper;
@@ -175,6 +177,14 @@ public class ClassroomServiceImpl implements  ClassroomService {
 
         classroom.setTeacher(newTeacher);
         classroomRepository.save(classroom);
+
+        notificationService.notifyClassroomStudents(
+                classID,
+                NotificationType.TEACHER_CHANGED,
+                "Giáo viên mới",
+                "Lớp học của bạn vừa được phân công giáo viên mới",
+                "/student/schedule"
+        );
 
         return ApiResponse.success(message, null);
     }

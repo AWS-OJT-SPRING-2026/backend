@@ -6,20 +6,33 @@ import lombok.experimental.FieldDefaults;
 import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.NotificationResponse;
+import ojt.aws.educare.entity.Assignment;
+import ojt.aws.educare.entity.ClassMember;
 import ojt.aws.educare.entity.Notification;
 import ojt.aws.educare.entity.NotificationType;
 import ojt.aws.educare.entity.User;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.NotificationMapper;
+import ojt.aws.educare.repository.AssignmentRepository;
+import ojt.aws.educare.repository.ClassMemberRepository;
 import ojt.aws.educare.repository.NotificationRepository;
 import ojt.aws.educare.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +42,19 @@ public class NotificationServiceImpl implements NotificationService {
     NotificationRepository notificationRepository;
     NotificationMapper notificationMapper;
     CurrentUserProvider currentUserProvider;
+    AssignmentRepository assignmentRepository;
+    ClassMemberRepository classMemberRepository;
+
+    static final String ASSIGNMENT_TYPE_TEST = "TEST";
+    static final Pattern TEST_ACTION_URL_PATTERN = Pattern.compile("^/student/tests/(\\d+)$");
+
+    static final Set<NotificationType> ASSIGNMENT_CONTEXT_TYPES = EnumSet.of(
+            NotificationType.ASSIGNMENT_NEW,
+            NotificationType.ASSIGNMENT_DUE_SOON,
+            NotificationType.ASSIGNMENT_OVERDUE,
+            NotificationType.TEST_UPCOMING,
+            NotificationType.TEST_STARTING
+    );
 
     private static final List<NotificationType> IMPORTANT_TYPES = Arrays.asList(
             NotificationType.ASSIGNMENT_DUE_SOON,
@@ -66,9 +92,10 @@ public class NotificationServiceImpl implements NotificationService {
             notifications = notificationRepository.findByUser_UserIDOrderByCreatedAtDesc(currentUser.getUserID());
         }
 
+        Map<Integer, Assignment> assignmentById = buildAssignmentMap(notifications);
         List<NotificationResponse> result = notifications.stream()
-                .map(notificationMapper::toResponse)
-                .collect(Collectors.toList());
+                .map(notification -> toResponse(notification, assignmentById))
+                .toList();
 
         return ApiResponse.<List<NotificationResponse>>builder().result(result).build();
     }
@@ -86,8 +113,9 @@ public class NotificationServiceImpl implements NotificationService {
 
         notification.setIsRead(Boolean.TRUE);
         notificationRepository.save(notification);
+        Map<Integer, Assignment> assignmentById = buildAssignmentMap(List.of(notification));
         return ApiResponse.<NotificationResponse>builder()
-                .result(notificationMapper.toResponse(notification))
+                .result(toResponse(notification, assignmentById))
                 .build();
     }
 
@@ -118,5 +146,127 @@ public class NotificationServiceImpl implements NotificationService {
                 .isRead(Boolean.FALSE)
                 .build();
         notificationRepository.save(notification);
+    }
+
+    @Override
+    @Transactional
+    public void notifyClassroomStudents(Integer classId, NotificationType type, String title, String content, String actionUrl) {
+        List<ClassMember> members = classMemberRepository.findByClassroomClassID(classId);
+        for (ClassMember member : members) {
+            if (member.getStudent() == null || member.getStudent().getUser() == null) {
+                continue;
+            }
+            createNotification(member.getStudent().getUser(), type, title, content, actionUrl);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void deleteByActionUrl(String actionUrl) {
+        if (actionUrl == null || actionUrl.isBlank()) {
+            return;
+        }
+        notificationRepository.deleteByActionUrl(actionUrl);
+    }
+
+    private NotificationResponse toResponse(Notification notification, Map<Integer, Assignment> assignmentById) {
+        NotificationResponse response = notificationMapper.toResponse(notification);
+        resolveAssignment(notification, assignmentById).ifPresent(assignment -> {
+            if (notification.getType() == NotificationType.ASSIGNMENT_NEW) {
+                if (ASSIGNMENT_TYPE_TEST.equalsIgnoreCase(assignment.getAssignmentType())) {
+                    response.setTestStartTime(assignment.getStartTime());
+                } else {
+                    response.setAssignmentDeadline(assignment.getDeadline());
+                }
+                return;
+            }
+
+            if (notification.getType() == NotificationType.TEST_UPCOMING) {
+                response.setTitle("Bài kiểm tra sắp diễn ra");
+                response.setContent(buildUpcomingTestContent(assignment));
+                response.setTestStartTime(assignment.getStartTime());
+                return;
+            }
+
+            if (notification.getType() == NotificationType.TEST_STARTING) {
+                response.setTestStartTime(assignment.getStartTime());
+                return;
+            }
+
+            if (notification.getType() == NotificationType.ASSIGNMENT_DUE_SOON
+                    || notification.getType() == NotificationType.ASSIGNMENT_OVERDUE) {
+                response.setAssignmentDeadline(assignment.getDeadline());
+            }
+        });
+        return response;
+    }
+
+    private String buildUpcomingTestContent(Assignment assignment) {
+        LocalDateTime startTime = assignment.getStartTime();
+        if (startTime == null) {
+            return "Bài kiểm tra \"" + assignment.getTitle() + "\" sẽ sớm bắt đầu";
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (startTime.toLocalDate().isEqual(LocalDate.now().plusDays(1))) {
+            return "Bài kiểm tra \"" + assignment.getTitle() + "\" sẽ bắt đầu vào ngày mai";
+        }
+
+        long minutes = Duration.between(now, startTime).toMinutes();
+        if (minutes > 0 && minutes <= 60) {
+            return "Bài kiểm tra \"" + assignment.getTitle() + "\" sẽ bắt đầu sau " + minutes + " phút";
+        }
+
+        if (minutes > 60) {
+            long hours = Math.round(minutes / 60.0);
+            return "Bài kiểm tra \"" + assignment.getTitle() + "\" sẽ bắt đầu sau " + hours + " giờ";
+        }
+
+        return "Bài kiểm tra \"" + assignment.getTitle() + "\" đang bắt đầu";
+    }
+
+    private Map<Integer, Assignment> buildAssignmentMap(List<Notification> notifications) {
+        Map<Integer, Assignment> assignmentById = new HashMap<>();
+        List<Integer> assignmentIds = notifications.stream()
+                .filter(notification -> ASSIGNMENT_CONTEXT_TYPES.contains(notification.getType()))
+                .map(Notification::getActionUrl)
+                .map(this::extractAssignmentId)
+                .flatMap(Optional::stream)
+                .distinct()
+                .toList();
+
+        if (assignmentIds.isEmpty()) {
+            return assignmentById;
+        }
+
+        assignmentRepository.findAllById(assignmentIds)
+                .forEach(assignment -> assignmentById.put(assignment.getAssignmentID(), assignment));
+        return assignmentById;
+    }
+
+    private Optional<Assignment> resolveAssignment(Notification notification, Map<Integer, Assignment> assignmentById) {
+        if (notification.getActionUrl() == null || !ASSIGNMENT_CONTEXT_TYPES.contains(notification.getType())) {
+            return Optional.empty();
+        }
+
+        return extractAssignmentId(notification.getActionUrl())
+                .map(assignmentById::get);
+    }
+
+    private Optional<Integer> extractAssignmentId(String actionUrl) {
+        if (actionUrl == null) {
+            return Optional.empty();
+        }
+
+        Matcher matcher = TEST_ACTION_URL_PATTERN.matcher(actionUrl);
+        if (!matcher.matches()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(Integer.parseInt(matcher.group(1)));
+        } catch (NumberFormatException ex) {
+            return Optional.empty();
+        }
     }
 }

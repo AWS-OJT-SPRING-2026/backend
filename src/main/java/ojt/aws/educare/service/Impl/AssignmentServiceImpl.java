@@ -16,6 +16,7 @@ import ojt.aws.educare.mapper.QuestionMapper;
 import ojt.aws.educare.mapper.SubmissionMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.AssignmentService;
+import ojt.aws.educare.service.NotificationService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +53,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     StudentRepository studentRepository;
     TeacherRepository teacherRepository;
     CurrentUserProvider currentUserProvider;
+    NotificationService notificationService;
     AssignmentMapper assignmentMapper;
     QuestionMapper questionMapper;
     SubmissionMapper submissionMapper;
@@ -551,6 +553,8 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         validateTimeByAssignmentType(assignmentType, startTime, endTime, deadline, durationMinutes);
 
+        boolean wasResultHidden = !resolveResultVisibility(assignment, LocalDateTime.now()).canViewResult();
+
         if (request.getTitle() != null)
             assignment.setTitle(request.getTitle());
         assignment.setAssignmentType(assignmentType);
@@ -565,6 +569,23 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         assignment = assignmentRepository.save(assignment);
+
+        boolean isResultVisible = resolveResultVisibility(assignment, LocalDateTime.now()).canViewResult();
+        if (wasResultHidden && isResultVisible) {
+            List<Submission> submissions = submissionRepository.findByAssignment_AssignmentID(assignmentId);
+            String actionUrl = "/student/tests/" + assignmentId;
+            for (Submission submission : submissions) {
+                if (submission.getUser() != null) {
+                    notificationService.createNotification(
+                        submission.getUser(),
+                        NotificationType.TEST_RESULT,
+                        "Kết quả bài kiểm tra",
+                        "Kết quả bài làm \"" + assignment.getTitle() + "\" đã được công bố",
+                        actionUrl
+                    );
+                }
+            }
+        }
 
         List<Integer> questionIds = request.getQuestionIds() != null
                 ? request.getQuestionIds()
@@ -599,6 +620,23 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         assignment.setStatus("ACTIVE");
         assignment = assignmentRepository.save(assignment);
+
+        String actionUrl = "/student/tests/" + assignment.getAssignmentID();
+        boolean isTest = ASSIGNMENT_TYPE_TEST.equalsIgnoreCase(assignment.getAssignmentType());
+        String className = assignment.getClassroom() != null && assignment.getClassroom().getClassName() != null
+                ? assignment.getClassroom().getClassName()
+                : "--";
+        String notificationTitle = isTest
+                ? "Lớp " + className + " có bài kiểm tra mới"
+                : "Lớp " + className + " có bài tập mới";
+        String notificationContent = "Bài \"" + assignment.getTitle() + "\" đã sẵn sàng để làm";
+        notificationService.notifyClassroomStudents(
+                assignment.getClassroom().getClassID(),
+                NotificationType.ASSIGNMENT_NEW,
+                notificationTitle,
+                notificationContent,
+                actionUrl
+        );
 
         return ApiResponse.success("Phát hành đề kiểm tra thành công", mapAssignmentResponseWithCounts(assignment));
     }
@@ -637,6 +675,8 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new AppException(ErrorCode.FORBIDDEN);
         }
 
+        String actionUrl = "/student/tests/" + assignment.getAssignmentID();
+        notificationService.deleteByActionUrl(actionUrl);
         assignmentRepository.delete(assignment);
         return ApiResponse.success("Xóa đề kiểm tra thành công");
     }
@@ -685,7 +725,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         List<QuestionRepository.QuestionRandomProjection> allQuestions = questionRepository
-                .findRandomQuestionPreviewData(bankId, difficultyLevel);
+                .findRandomQuestionPreviewData(bankId, difficultyLevel, currentUser.getUserID());
         List<QuestionRepository.QuestionRandomProjection> mutable = new ArrayList<>(allQuestions);
         Collections.shuffle(mutable);
 
