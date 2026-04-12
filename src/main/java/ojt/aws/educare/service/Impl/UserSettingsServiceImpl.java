@@ -37,12 +37,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         UserSettings settings = userSettingsRepository.findByUser_UserID(user.getUserID())
                 .orElseGet(() -> {
                     // Create default settings if not found
-                    UserSettings defaultSettings = UserSettings.builder()
-                            .user(user)
-                            .theme("light")
-                            .language("vi")
-                            .sidebarMode("auto")
-                            .build();
+                    UserSettings defaultSettings = userSettingsMapper.toDefaultSettings(user);
                     return userSettingsRepository.save(defaultSettings);
                 });
 
@@ -57,12 +52,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         User user = getCurrentUser();
         UserSettings settings = userSettingsRepository.findByUser_UserID(user.getUserID())
                 .orElseGet(() -> {
-                    UserSettings defaultSettings = UserSettings.builder()
-                            .user(user)
-                            .theme("light")
-                            .language("vi")
-                            .sidebarMode("auto")
-                            .build();
+                    UserSettings defaultSettings = userSettingsMapper.toDefaultSettings(user);
                     return userSettingsRepository.save(defaultSettings);
                 });
 

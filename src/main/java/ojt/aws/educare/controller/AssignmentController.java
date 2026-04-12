@@ -142,4 +142,10 @@ public class AssignmentController {
     public ApiResponse<AssignmentResultResponse> getMyResult(@PathVariable Integer id) {
         return assignmentService.getMyResult(id);
     }
+
+    @GetMapping("/student/upcoming-tasks")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ApiResponse<List<UpcomingTaskResponse>> getUpcomingTasks() {
+        return assignmentService.getUpcomingTasks();
+    }
 }

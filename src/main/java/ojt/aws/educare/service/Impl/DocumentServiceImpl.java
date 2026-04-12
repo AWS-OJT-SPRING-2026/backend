@@ -9,6 +9,7 @@ import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.entity.*;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
+import ojt.aws.educare.mapper.ClassroomMaterialMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.DocumentService;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class DocumentServiceImpl implements DocumentService {
     BookRepository bookRepository;
     QuestionBankRepository questionBankRepository;
     CurrentUserProvider currentUserProvider;
+    ClassroomMaterialMapper classroomMaterialMapper;
 
     @Override
     @Transactional
@@ -63,28 +65,24 @@ public class DocumentServiceImpl implements DocumentService {
                 throw new AppException(ErrorCode.CLASSROOM_NOT_FOUND);
             }
 
+            Book book = null;
+            QuestionBank questionBank = null;
+            if (normalizedType == MaterialType.THEORY) {
+                book = bookRepository.findById(documentId)
+                        .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
+            } else {
+                questionBank = questionBankRepository.findById(documentId)
+                        .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
+            }
+
             List<ClassroomMaterial> toInsert = new ArrayList<>();
             for (Integer classId : idsToAdd) {
                 Classroom classroom = classroomMap.get(classId);
                 validateTeacherOwnsClassroom(currentUser, classroom);
 
-                ClassroomMaterial material = ClassroomMaterial.builder()
-                        .classroom(classroom)
-                        .type(normalizedType)
-                        .assignedBy(currentUser)
-                        .build();
-
-                if (normalizedType == MaterialType.THEORY) {
-                    Book book = bookRepository.findById(documentId)
-                            .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
-                    material.setBook(book);
-                    material.setQuestionBank(null);
-                } else {
-                    QuestionBank questionBank = questionBankRepository.findById(documentId)
-                            .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
-                    material.setQuestionBank(questionBank);
-                    material.setBook(null);
-                }
+                ClassroomMaterial material = normalizedType == MaterialType.THEORY
+                        ? classroomMaterialMapper.toTheoryMaterial(classroom, normalizedType, currentUser, book)
+                        : classroomMaterialMapper.toQuestionMaterial(classroom, normalizedType, currentUser, questionBank);
 
                 toInsert.add(material);
             }

@@ -49,12 +49,7 @@ public class FeedbackServiceImpl implements FeedbackService {
         Assignment assignment = assignmentRepository.findById(request.getAssignmentId())
                 .orElseThrow(() -> new AppException(ErrorCode.ASSIGNMENT_NOT_FOUND));
 
-        Feedback feedback = Feedback.builder()
-                .student(student)
-                .assignment(assignment)
-                .teacher(teacher)
-                .comment(request.getComment())
-                .build();
+        Feedback feedback = feedbackMapper.toFeedback(request, student, assignment, teacher);
 
         Feedback saved = feedbackRepository.save(feedback);
 

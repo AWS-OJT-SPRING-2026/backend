@@ -15,6 +15,7 @@ import ojt.aws.educare.entity.Submission;
 import ojt.aws.educare.entity.User;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
+import ojt.aws.educare.mapper.QuizDraftMapper;
 import ojt.aws.educare.repository.QuizDraftRepository;
 import ojt.aws.educare.repository.SubmissionRepository;
 import ojt.aws.educare.service.QuizDraftService;
@@ -37,6 +38,7 @@ public class QuizDraftServiceImpl implements QuizDraftService {
     QuizDraftRepository quizDraftRepository;
     CurrentUserProvider currentUserProvider;
     ObjectMapper objectMapper;
+    QuizDraftMapper quizDraftMapper;
 
 
     private User getCurrentUser() {
@@ -63,10 +65,7 @@ public class QuizDraftServiceImpl implements QuizDraftService {
                         Integer qId = m.get("questionId") instanceof Number n ? n.intValue() : null;
                         Object aRaw = m.get("answerRefId");
                         Integer aId = aRaw instanceof Number n ? n.intValue() : null;
-                        return QuizDraftResponse.SavedAnswer.builder()
-                                .questionId(qId)
-                                .answerRefId(aId)
-                                .build();
+                        return quizDraftMapper.toSavedAnswer(qId, aId);
                     })
                     .toList();
         } catch (Exception e) {
@@ -75,13 +74,7 @@ public class QuizDraftServiceImpl implements QuizDraftService {
     }
 
     private QuizDraftResponse toResponse(QuizDraft draft) {
-        return QuizDraftResponse.builder()
-                .assignmentId(draft.getSubmission().getAssignment().getAssignmentID())
-                .submissionId(draft.getSubmission().getSubmissionID())
-                .answers(deserializeAnswers(draft.getAnswersJson()))
-                .currentQuestion(draft.getCurrentQuestion())
-                .lastSavedAt(draft.getLastSavedAt())
-                .build();
+        return quizDraftMapper.toResponse(draft, deserializeAnswers(draft.getAnswersJson()));
     }
 
 

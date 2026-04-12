@@ -15,6 +15,7 @@ import ojt.aws.educare.entity.*;
 import ojt.aws.educare.exception.AppException;
 
 import ojt.aws.educare.exception.ErrorCode;
+import ojt.aws.educare.mapper.PageResponseMapper;
 import ojt.aws.educare.mapper.UserMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.CognitoIdentityService;
@@ -49,6 +50,7 @@ public class UserServiceImpl implements UserService {
     S3UploadService s3UploadService;
 
     UserMapper userMapper;
+    PageResponseMapper pageResponseMapper;
     PasswordEncoder passwordEncoder;
     CurrentUserProvider currentUserProvider;
     CognitoIdentityService cognitoIdentityService;
@@ -212,13 +214,12 @@ public class UserServiceImpl implements UserService {
         List<UserResponse> userResponses = userMapper.toUserResponseList(userPage.getContent());
         resolveAvatar(userResponses);
 
-        PageResponse<UserResponse> pageResponse = PageResponse.<UserResponse>builder()
-                .currentPage(page)
-                .pageSize(size)
-                .totalPages(userPage.getTotalPages())
-                .totalElements(userPage.getTotalElements())
-                .data(userResponses)
-                .build();
+        PageResponse<UserResponse> pageResponse = pageResponseMapper.toPageResponse(
+                page,
+                size,
+                userPage.getTotalPages(),
+                userPage.getTotalElements(),
+                userResponses);
 
         return ApiResponse.success("Lấy danh sách người dùng thành công", pageResponse);
     }
@@ -354,14 +355,13 @@ public class UserServiceImpl implements UserService {
 
         passwordResetTokenRepository.markAllTokensAsUsed(user.getUserID());
 
-        PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token(UUID.randomUUID().toString())
-                .otpCode(otpCode)
-                .expiryDate(LocalDateTime.now().plusMinutes(1).plusSeconds(30))
-                .used(false)
-                .user(user)
-                .createdDate(LocalDateTime.now())
-                .build();
+        PasswordResetToken resetToken = userMapper.toPasswordResetToken(
+                UUID.randomUUID().toString(),
+                otpCode,
+                LocalDateTime.now().plusMinutes(1).plusSeconds(30),
+                false,
+                user,
+                LocalDateTime.now());
 
         passwordResetTokenRepository.save(resetToken);
         emailService.sendForgotPasswordOtpEmail(user.getEmail(), otpCode, user.getFullName());
@@ -503,14 +503,13 @@ public class UserServiceImpl implements UserService {
         String otpCode = generateOtp();
         passwordResetTokenRepository.markAllTokensAsUsed(user.getUserID());
 
-        PasswordResetToken resetToken = PasswordResetToken.builder()
-                .token(UUID.randomUUID().toString())
-                .otpCode(otpCode)
-                .expiryDate(LocalDateTime.now().plusMinutes(2)) // Cho 2 phút để nhập mã
-                .used(false)
-                .user(user)
-                .createdDate(LocalDateTime.now())
-                .build();
+        PasswordResetToken resetToken = userMapper.toPasswordResetToken(
+                UUID.randomUUID().toString(),
+                otpCode,
+                LocalDateTime.now().plusMinutes(2), // Cho 2 phút để nhập mã
+                false,
+                user,
+                LocalDateTime.now());
 
         passwordResetTokenRepository.save(resetToken);
         emailService.sendChangePasswordOtpEmail(user.getEmail(), otpCode, user.getFullName());

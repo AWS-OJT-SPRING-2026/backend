@@ -10,5 +10,15 @@ public interface WeeklyGradeStatsMapper {
 
     @Mapping(target = "dayLabel", ignore = true)
     WeeklyGradeDayResponse toWeeklyGradeDayResponse(WeeklyGradeAggregationProjection projection);
+
+    default WeeklyGradeDayResponse toDefaultWeeklyGradeDayResponse(Integer dayOfWeek, String dayLabel) {
+        return WeeklyGradeDayResponse.builder()
+                .dayOfWeek(dayOfWeek)
+                .dayLabel(dayLabel)
+                .hocSinhGioiKha(0L)
+                .hocSinhYeuKem(0L)
+                .tongBaiCham(0L)
+                .build();
+    }
 }
 

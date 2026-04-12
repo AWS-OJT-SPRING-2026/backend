@@ -4,6 +4,7 @@ import ojt.aws.educare.dto.request.*;
 import ojt.aws.educare.dto.response.StudentResponse;
 import ojt.aws.educare.dto.response.TeacherResponse;
 import ojt.aws.educare.dto.response.UserResponse;
+import ojt.aws.educare.entity.PasswordResetToken;
 import ojt.aws.educare.entity.Classroom;
 import ojt.aws.educare.entity.Student;
 import ojt.aws.educare.entity.Teacher;
@@ -14,6 +15,7 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.Named;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
@@ -25,8 +27,6 @@ public interface UserMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "teacherID", ignore = true)
     @Mapping(target = "classrooms", ignore = true)
-//    @Mapping(target = "materials", ignore = true)
-//    @Mapping(target = "assignments", ignore = true)
     Teacher toTeacher(TeacherCreateRequest request);
 
     User toUser(StudentCreateRequest request);
@@ -34,8 +34,6 @@ public interface UserMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "studentID", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-//    @Mapping(target = "submissions", ignore = true)
-//    @Mapping(target = "aiChatHistories", ignore = true)
     @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
     @Mapping(target = "learningProfiles", ignore = true)
@@ -102,17 +100,31 @@ public interface UserMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "teacherID", ignore = true)
     @Mapping(target = "classrooms", ignore = true)
-//    @Mapping(target = "materials", ignore = true)
-//    @Mapping(target = "assignments", ignore = true)
     void updateTeacherFromRequest(@MappingTarget Teacher teacher, TeacherUpdateRequest request);
 
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "studentID", ignore = true)
     @Mapping(target = "classMembers", ignore = true)
-//    @Mapping(target = "submissions", ignore = true)
-//    @Mapping(target = "aiChatHistories", ignore = true)
     @Mapping(target = "aiChatSessions", ignore = true)
     @Mapping(target = "roadmaps", ignore = true)
     @Mapping(target = "learningProfiles", ignore = true)
     void updateStudentFromRequest(@MappingTarget Student student, StudentUpdateRequest request);
+
+    default PasswordResetToken toPasswordResetToken(
+            String token,
+            String otpCode,
+            LocalDateTime expiryDate,
+            Boolean used,
+            User user,
+            LocalDateTime createdDate
+    ) {
+        return PasswordResetToken.builder()
+                .token(token)
+                .otpCode(otpCode)
+                .expiryDate(expiryDate)
+                .used(used)
+                .user(user)
+                .createdDate(createdDate)
+                .build();
+    }
 }

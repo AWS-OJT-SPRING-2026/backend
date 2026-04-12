@@ -12,6 +12,7 @@ import ojt.aws.educare.entity.Student;
 import ojt.aws.educare.entity.User;
 import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
+import ojt.aws.educare.mapper.WeeklyProgressMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.service.WeeklyProgressService;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
     AssignmentRepository assignmentRepository;
     SubmissionRepository submissionRepository;
     AttendanceRepository attendanceRepository;
+    WeeklyProgressMapper weeklyProgressMapper;
 
     @Override
     public ApiResponse<WeeklyProgressResponse> getMyWeeklyProgress() {
@@ -105,31 +107,20 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
         int completedTasks = assignmentDone + testDone + attendanceDone;
         int progressPercent = totalTasks > 0 ? (completedTasks * 100 / totalTasks) : 0;
 
-        return ApiResponse.<WeeklyProgressResponse>builder()
-                .result(WeeklyProgressResponse.builder()
-                        .progressPercent(progressPercent)
-                        .totalTasks(totalTasks)
-                        .completedTasks(completedTasks)
-                        .breakdown(WeeklyProgressResponse.Breakdown.builder()
-                                .assignmentDone(assignmentDone)
-                                .assignmentTotal(assignments.size())
-                                .testDone(testDone)
-                                .testTotal(tests.size())
-                                .attendanceDone(attendanceDone)
-                                .attendanceTotal(attendanceTotal)
-                                .build())
-                        .build())
-                .build();
+        WeeklyProgressResponse.Breakdown breakdown = weeklyProgressMapper.toBreakdown(
+                assignmentDone, assignments.size(), testDone, tests.size(), attendanceDone, attendanceTotal);
+
+        WeeklyProgressResponse response = weeklyProgressMapper.toResponse(
+                progressPercent, totalTasks, completedTasks, breakdown);
+
+        return ApiResponse.<WeeklyProgressResponse>builder().result(response).build();
     }
 
     private ApiResponse<WeeklyProgressResponse> emptyResponse() {
+        WeeklyProgressResponse.Breakdown breakdown = weeklyProgressMapper.toBreakdown(0, 0, 0, 0, 0, 0);
+        WeeklyProgressResponse response = weeklyProgressMapper.toResponse(0, 0, 0, breakdown);
         return ApiResponse.<WeeklyProgressResponse>builder()
-                .result(WeeklyProgressResponse.builder()
-                        .progressPercent(0)
-                        .totalTasks(0)
-                        .completedTasks(0)
-                        .breakdown(WeeklyProgressResponse.Breakdown.builder().build())
-                        .build())
+                .result(response)
                 .build();
     }
 }

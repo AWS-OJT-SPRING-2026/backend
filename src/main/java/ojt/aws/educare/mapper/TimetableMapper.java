@@ -1,9 +1,15 @@
 package ojt.aws.educare.mapper;
 
 import ojt.aws.educare.dto.request.TimetableRequest;
+import ojt.aws.educare.dto.request.TimetableRecurringRequest;
 import ojt.aws.educare.dto.response.StudentScheduleResponse;
+import ojt.aws.educare.dto.response.StudentWeeklyStatsResponse;
+import ojt.aws.educare.dto.response.TeacherScheduleStatsResponse;
 import ojt.aws.educare.dto.response.TimetableResponse;
+import ojt.aws.educare.dto.response.TimetableStatsResponse;
+import ojt.aws.educare.entity.Classroom;
 import ojt.aws.educare.entity.ClassMember;
+import ojt.aws.educare.entity.Teacher;
 import ojt.aws.educare.entity.Timetable;
 import org.mapstruct.*;
 
@@ -19,6 +25,24 @@ public interface TimetableMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "status", constant = "SCHEDULED")
     Timetable toTimetable(TimetableRequest request);
+
+    @Mapping(target = "timetableID", ignore = true)
+    @Mapping(target = "classroom", source = "classroom")
+    @Mapping(target = "teacher", source = "teacher")
+    @Mapping(target = "topic", source = "request.topic")
+    @Mapping(target = "googleMeetLink", source = "request.googleMeetLink")
+    @Mapping(target = "startTime", source = "startTime")
+    @Mapping(target = "endTime", source = "endTime")
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "status", constant = "SCHEDULED")
+    @Mapping(target = "attendances", ignore = true)
+    Timetable toRecurringTimetable(
+            TimetableRecurringRequest request,
+            Classroom classroom,
+            Teacher teacher,
+            java.time.LocalDateTime startTime,
+            java.time.LocalDateTime endTime
+    );
 
     @Mapping(target = "classID", source = "classroom.classID")
     @Mapping(target = "className", source = "classroom.className")
@@ -53,4 +77,39 @@ public interface TimetableMapper {
     @Mapping(target = "fullName", source = "student.fullName")
     @Mapping(target = "avatarUrl", source = "student.user.avatarUrl")
     StudentScheduleResponse.ClassmateResponse toClassmateResponse(ClassMember classMember);
+
+    default TimetableStatsResponse toStatsResponse(long totalToday, long ongoing, long upcoming, long completed) {
+        return TimetableStatsResponse.builder()
+                .totalToday(totalToday)
+                .ongoing(ongoing)
+                .upcoming(upcoming)
+                .completed(completed)
+                .build();
+    }
+
+    default TeacherScheduleStatsResponse toTeacherScheduleStatsResponse(
+            long totalSessions,
+            long hasLinkSessions,
+            long missingLinkSessions
+    ) {
+        return TeacherScheduleStatsResponse.builder()
+                .totalSessions(totalSessions)
+                .hasLinkSessions(hasLinkSessions)
+                .missingLinkSessions(missingLinkSessions)
+                .build();
+    }
+
+    default StudentWeeklyStatsResponse toStudentWeeklyStatsResponse(
+            int totalClassesThisWeek,
+            double totalHoursStudied,
+            int totalSubjects,
+            int totalExams
+    ) {
+        return StudentWeeklyStatsResponse.builder()
+                .totalClassesThisWeek(totalClassesThisWeek)
+                .totalHoursStudied(totalHoursStudied)
+                .totalSubjects(totalSubjects)
+                .totalExams(totalExams)
+                .build();
+    }
 }

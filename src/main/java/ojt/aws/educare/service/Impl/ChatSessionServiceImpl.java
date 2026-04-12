@@ -91,14 +91,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
     private ChatSessionResponse toChatSessionResponse(AIChatSession session) {
         List<ChatMessageRequest> messages = readMessages(session.getMessagesJson());
         List<ChatMessageResponse> messageResponses = chatSessionMapper.toChatMessageResponseList(messages);
-
-        return ChatSessionResponse.builder()
-                .sessionId(session.getSessionKey())
-                .title(session.getTitle())
-                .messages(messageResponses)
-                .createdAt(session.getCreatedAt())
-                .updatedAt(session.getUpdatedAt())
-                .build();
+        return chatSessionMapper.toChatSessionResponse(session, messageResponses);
     }
 
     private String writeMessages(List<ChatMessageRequest> messages) {

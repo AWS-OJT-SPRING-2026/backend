@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -60,15 +61,14 @@ public class Classroom {
     @Column(name = "CreatedAt", updatable = false)
     LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    @Column(name = "UpdatedAt")
+    LocalDateTime updatedAt;
+
     @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     List<ClassMember> classMembers = new ArrayList<>();
-
-//    @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
-//    @ToString.Exclude
-//    @EqualsAndHashCode.Exclude
-//    List<Material> materials = new ArrayList<>();
 
     @OneToMany(mappedBy = "classroom", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude

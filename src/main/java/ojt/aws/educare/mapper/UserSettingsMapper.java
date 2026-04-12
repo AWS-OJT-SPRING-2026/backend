@@ -2,6 +2,7 @@ package ojt.aws.educare.mapper;
 
 import ojt.aws.educare.dto.request.UserSettingsUpdateRequest;
 import ojt.aws.educare.dto.response.UserSettingsResponse;
+import ojt.aws.educare.entity.User;
 import ojt.aws.educare.entity.UserSettings;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -19,4 +20,13 @@ public interface UserSettingsMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     void updateSettings(@MappingTarget UserSettings settings, UserSettingsUpdateRequest request);
+
+    default UserSettings toDefaultSettings(User user) {
+        return UserSettings.builder()
+                .user(user)
+                .theme("light")
+                .language("vi")
+                .sidebarMode("auto")
+                .build();
+    }
 }

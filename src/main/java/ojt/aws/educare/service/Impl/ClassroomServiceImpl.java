@@ -14,6 +14,7 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.ClassMemberMapper;
 import ojt.aws.educare.mapper.ClassroomMapper;
+import ojt.aws.educare.mapper.PageResponseMapper;
 import ojt.aws.educare.mapper.WeeklyGradeStatsMapper;
 import ojt.aws.educare.repository.*;
 import ojt.aws.educare.repository.projection.WeeklyGradeAggregationProjection;
@@ -31,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,6 +81,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
     AssignmentRepository assignmentRepository;
     SubmissionRepository submissionRepository;
     AttendanceRepository attendanceRepository;
+    TimetableRepository timetableRepository;
     S3UploadService s3UploadService;
     CurrentUserProvider currentUserProvider;
     NotificationService notificationService;
@@ -86,10 +89,18 @@ public class ClassroomServiceImpl implements  ClassroomService {
     ClassroomMapper classroomMapper;
     ClassMemberMapper classMemberMapper;
     WeeklyGradeStatsMapper weeklyGradeStatsMapper;
+    PageResponseMapper pageResponseMapper;
 
     @Override
     public ApiResponse<PageResponse<ClassroomResponse>> getAllClassrooms(int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
+        Pageable pageable = PageRequest.of(
+                page - 1,
+                size,
+                Sort.by(
+                        Sort.Order.desc("updatedAt"),
+                        Sort.Order.desc("createdAt"),
+                        Sort.Order.desc("classID")
+                ));
         User currentUser = currentUserProvider.getCurrentUser();
 
         String roleName = currentUser.getRole() != null && currentUser.getRole().getRoleName() != null
@@ -107,13 +118,8 @@ public class ClassroomServiceImpl implements  ClassroomService {
 
         List<ClassroomResponse> responses = classroomMapper.toClassroomResponseList(classroomPage.getContent());
 
-        PageResponse<ClassroomResponse> pageResponse = PageResponse.<ClassroomResponse>builder()
-                .currentPage(page)
-                .pageSize(size)
-                .totalPages(classroomPage.getTotalPages())
-                .totalElements(classroomPage.getTotalElements())
-                .data(responses)
-                .build();
+        PageResponse<ClassroomResponse> pageResponse = pageResponseMapper.toPageResponse(
+                page, size, classroomPage.getTotalPages(), classroomPage.getTotalElements(), responses);
 
         return ApiResponse.success("Lấy danh sách lớp học thành công", pageResponse);
     }
@@ -126,7 +132,9 @@ public class ClassroomServiceImpl implements  ClassroomService {
         long totalEnrolledStudents = classMemberRepository.count();
         int avgClassSize = totalClasses == 0 ? 0 : (int) Math.round((double) totalEnrolledStudents / totalClasses);
 
-        ClassroomStatsResponse stats = new ClassroomStatsResponse(totalClasses, activeClasses, unassignedClasses, avgClassSize);
+        ClassroomStatsResponse stats = classroomMapper.toClassroomStatsResponse(
+                totalClasses, activeClasses, unassignedClasses, avgClassSize);
+        
         return ApiResponse.success("Lấy thống kê thành công", stats);
     }
 
@@ -156,9 +164,12 @@ public class ClassroomServiceImpl implements  ClassroomService {
         Classroom classroom = classroomRepository.findById(classID)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
+        Teacher oldTeacher = classroom.getTeacher();
+
         if (teacherID == null) {
             classroom.setTeacher(null);
             classroomRepository.save(classroom);
+            syncTeacherForClassTimetables(classID, null);
             return ApiResponse.success("Đã gỡ phân công giáo viên khỏi lớp học", null);
         }
 
@@ -178,11 +189,13 @@ public class ClassroomServiceImpl implements  ClassroomService {
         classroom.setTeacher(newTeacher);
         classroomRepository.save(classroom);
 
+        int affectedSessions = syncTeacherForClassTimetables(classID, newTeacher);
+
         notificationService.notifyClassroomStudents(
                 classID,
                 NotificationType.TEACHER_CHANGED,
-                "Giáo viên mới",
-                "Lớp học của bạn vừa được phân công giáo viên mới",
+                "Thay đổi giáo viên",
+                buildTeacherChangedContent(oldTeacher, newTeacher, affectedSessions),
                 "/student/schedule"
         );
 
@@ -195,7 +208,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
         Classroom classroom = classroomRepository.findById(classID)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
-        // 2. Lấy danh sách ID học sinh HIỆN TẠI đang có trong lớp từ DB (không dùng cache Hibernate)
+        // 2. Lấy danh sách ID học sinh HIỆN TẠI đang có trong lớp từ DB
         List<Integer> currentStudentIds = classMemberRepository.findByClassroomClassID(classID).stream()
                 .map(cm -> cm.getStudent().getStudentID())
                 .toList();
@@ -292,6 +305,9 @@ public class ClassroomServiceImpl implements  ClassroomService {
         Classroom classroom = classroomRepository.findById(classID)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
+        Teacher oldTeacher = classroom.getTeacher();
+        boolean teacherChanged = false;
+
         if (request.getSubjectID() != null && (classroom.getSubject() == null || !classroom.getSubject().getSubjectID().equals(request.getSubjectID()))) {
             Subject subject = subjectRepository.findById(request.getSubjectID())
                     .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
@@ -299,16 +315,32 @@ public class ClassroomServiceImpl implements  ClassroomService {
         }
 
         if (request.getTeacherID() == null) {
+            teacherChanged = classroom.getTeacher() != null;
             classroom.setTeacher(null);
         } else if (classroom.getTeacher() == null || !classroom.getTeacher().getTeacherID().equals(request.getTeacherID())) {
             Teacher teacher = teacherRepository.findById(request.getTeacherID())
                     .orElseThrow(() -> new AppException(ErrorCode.TEACHER_NOT_FOUND));
             classroom.setTeacher(teacher);
+            teacherChanged = true;
         }
 
         classroomMapper.updateClassroomFromRequest(classroom, request);
 
         Classroom savedClassroom = classroomRepository.save(classroom);
+
+        if (teacherChanged) {
+            int affectedSessions = syncTeacherForClassTimetables(classID, savedClassroom.getTeacher());
+            if (savedClassroom.getTeacher() != null) {
+                notificationService.notifyClassroomStudents(
+                        classID,
+                        NotificationType.TEACHER_CHANGED,
+                        "Thay đổi giáo viên",
+                        buildTeacherChangedContent(oldTeacher, savedClassroom.getTeacher(), affectedSessions),
+                        "/student/schedule"
+                );
+            }
+        }
+
         return ApiResponse.success("Cập nhật lớp học thành công", classroomMapper.toClassroomResponse(savedClassroom));
     }
 
@@ -360,15 +392,8 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 .map(Classroom::getClassName)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
-        ClassDashboardResponse response = ClassDashboardResponse.builder()
-                .classID(classID)
-                .className(className)
-                .totalStudents(total)
-                .onlineStudents(online)
-                .offlineStudents(offline)
-                .attentionStudents(attention)
-                .averageGpa(round2(averageGpa))
-                .build();
+        ClassDashboardResponse response = classroomMapper.toClassDashboardResponse(
+                classID, className, total, online, offline, attention, round2(averageGpa));
 
         return ApiResponse.success("Lấy dữ liệu tổng quan lớp học thành công", response);
     }
@@ -405,13 +430,12 @@ public class ClassroomServiceImpl implements  ClassroomService {
         int toIndex = Math.min(fromIndex + safeSize, students.size());
         List<ClassStudentResponse> pageData = students.subList(fromIndex, toIndex);
 
-        PageResponse<ClassStudentResponse> response = PageResponse.<ClassStudentResponse>builder()
-                .currentPage(safePage)
-                .pageSize(safeSize)
-                .totalElements(students.size())
-                .totalPages((int) Math.ceil(students.size() / (double) safeSize))
-                .data(pageData)
-                .build();
+        PageResponse<ClassStudentResponse> response = pageResponseMapper.toPageResponse(
+                safePage,
+                safeSize,
+                (int) Math.ceil(students.size() / (double) safeSize),
+                students.size(),
+                pageData);
 
         return ApiResponse.success("Lấy danh sách học sinh thành công", response);
     }
@@ -441,13 +465,12 @@ public class ClassroomServiceImpl implements  ClassroomService {
         long idSeed = 1L;
 
         for (ClassStudentResponse s : students.stream().filter(st -> "ATTENTION".equals(st.getStatus())).toList()) {
-            notifications.add(ClassNotificationResponse.builder()
-                    .id(idSeed++)
-                    .category("GRADE")
-                    .title("Cảnh báo học tập")
-                    .body(String.format("%s có GPA %.1f và tiến độ %.0f%%", s.getFullName(), safeDouble(s.getGpa()), safeDouble(s.getCompletionRate())))
-                    .createdAt(LocalDateTime.now())
-                    .build());
+            notifications.add(classroomMapper.toClassNotificationResponse(
+                    idSeed++,
+                    "GRADE",
+                    "Cảnh báo học tập",
+                    String.format("%s có GPA %.1f và tiến độ %.0f%%", s.getFullName(), safeDouble(s.getGpa()), safeDouble(s.getCompletionRate())),
+                    LocalDateTime.now()));
         }
 
         LocalDateTime from = LocalDateTime.now().minusDays(7);
@@ -457,22 +480,20 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 .collect(Collectors.groupingBy(a -> a.getStudent().getFullName(), Collectors.counting()));
 
         for (Map.Entry<String, Long> item : absentByStudent.entrySet()) {
-            notifications.add(ClassNotificationResponse.builder()
-                    .id(idSeed++)
-                    .category("ATTENDANCE")
-                    .title("Điểm danh cần chú ý")
-                    .body(String.format("%s có %d buổi vắng/trễ trong 7 ngày gần đây", item.getKey(), item.getValue()))
-                    .createdAt(LocalDateTime.now().minusHours(2))
-                    .build());
+            notifications.add(classroomMapper.toClassNotificationResponse(
+                    idSeed++,
+                    "ATTENDANCE",
+                    "Điểm danh cần chú ý",
+                    String.format("%s có %d buổi vắng/trễ trong 7 ngày gần đây", item.getKey(), item.getValue()),
+                    LocalDateTime.now().minusHours(2)));
         }
 
-        notifications.add(ClassNotificationResponse.builder()
-                .id(idSeed)
-                .category("SYSTEM")
-                .title("Nhắc nhở hệ thống")
-                .body("Bạn có thể dùng chức năng Xuất báo cáo để tải dữ liệu lớp theo bộ lọc hiện tại.")
-                .createdAt(LocalDateTime.now().minusHours(6))
-                .build());
+        notifications.add(classroomMapper.toClassNotificationResponse(
+                idSeed,
+                "SYSTEM",
+                "Nhắc nhở hệ thống",
+                "Bạn có thể dùng chức năng Xuất báo cáo để tải dữ liệu lớp theo bộ lọc hiện tại.",
+                LocalDateTime.now().minusHours(6)));
 
         if (!"ALL".equals(normalizedCategory)) {
             notifications = notifications.stream()
@@ -489,13 +510,12 @@ public class ClassroomServiceImpl implements  ClassroomService {
         int fromIndex = Math.min((safePage - 1) * safeSize, notifications.size());
         int toIndex = Math.min(fromIndex + safeSize, notifications.size());
 
-        PageResponse<ClassNotificationResponse> response = PageResponse.<ClassNotificationResponse>builder()
-                .currentPage(safePage)
-                .pageSize(safeSize)
-                .totalElements(notifications.size())
-                .totalPages((int) Math.ceil(notifications.size() / (double) safeSize))
-                .data(notifications.subList(fromIndex, toIndex))
-                .build();
+        PageResponse<ClassNotificationResponse> response = pageResponseMapper.toPageResponse(
+                safePage,
+                safeSize,
+                (int) Math.ceil(notifications.size() / (double) safeSize),
+                notifications.size(),
+                notifications.subList(fromIndex, toIndex));
 
         return ApiResponse.success("Lấy timeline thông báo thành công", response);
     }
@@ -527,22 +547,15 @@ public class ClassroomServiceImpl implements  ClassroomService {
         for (int day = 1; day <= 6; day++) {
             WeeklyGradeDayResponse dayStat = byDay.get(day);
             if (dayStat == null) {
-                dayStat = WeeklyGradeDayResponse.builder()
-                        .dayOfWeek(day)
-                        .dayLabel(mapDayLabel(day))
-                        .hocSinhGioiKha(0L)
-                        .hocSinhYeuKem(0L)
-                        .tongBaiCham(0L)
-                        .build();
+                dayStat = weeklyGradeStatsMapper.toDefaultWeeklyGradeDayResponse(day, mapDayLabel(day));
             }
             days.add(dayStat);
         }
 
-        WeeklyGradeStatisticsResponse response = WeeklyGradeStatisticsResponse.builder()
-                .classID(classID)
-                .classCapacity(classroom.getMaxStudents() == null ? 0 : classroom.getMaxStudents())
-                .days(days)
-                .build();
+        WeeklyGradeStatisticsResponse response = classroomMapper.toWeeklyGradeStatisticsResponse(
+                classID,
+                classroom.getMaxStudents() == null ? 0 : classroom.getMaxStudents(),
+                days);
 
         return ApiResponse.success("Lấy thống kê điểm theo tuần thành công", response);
     }
@@ -634,15 +647,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
             Integer classID, ExportReportRequest request) {
         ExportFilePayload payload = downloadClassReport(classID, request);
 
-        ExportReportResponse response = ExportReportResponse.builder()
-                .fileName(payload.getFileName())
-                .format(request.getFormat().toUpperCase())
-                .dataTypes(request.getDataTypes().stream().map(String::toUpperCase).toList())
-                .timeRange(request.getTimeRange().toUpperCase())
-                .status("READY")
-                .message("Đã tạo file báo cáo thành công.")
-                .downloadUrl(null)
-                .build();
+        ExportReportResponse response = classroomMapper.toExportReportResponse(payload, request);
 
         return ApiResponse.success("Yêu cầu xuất báo cáo thành công", response);
     }
@@ -686,11 +691,7 @@ public class ClassroomServiceImpl implements  ClassroomService {
                 }
             }
 
-            return ExportFilePayload.builder()
-                    .fileName(fileName)
-                    .contentType(contentType)
-                    .content(content)
-                    .build();
+            return classroomMapper.toExportFilePayload(fileName, contentType, content);
         } catch (IOException e) {
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
@@ -802,17 +803,16 @@ public class ClassroomServiceImpl implements  ClassroomService {
 
             String status = resolveStudentStatus(user.getLastActiveAt(), completion, gpa, missingCount);
 
-            return ClassStudentResponse.builder()
-                    .studentId(student.getStudentID())
-                    .fullName(student.getFullName())
-                    .mssv(String.valueOf(student.getStudentID()))
-                    .avatarUrl(s3UploadService.resolveFileUrl(user.getAvatarUrl()))
-                    .completionRate(round2(completion))
-                    .gpa(round2(gpa))
-                    .missingCount(missingCount)
-                    .lastActiveTime(user.getLastActiveAt())
-                    .status(status)
-                    .build();
+            return classroomMapper.toClassStudentResponse(
+                    student.getStudentID(),
+                    student.getFullName(),
+                    String.valueOf(student.getStudentID()),
+                    s3UploadService.resolveFileUrl(user.getAvatarUrl()),
+                    round2(completion),
+                    round2(gpa),
+                    missingCount,
+                    user.getLastActiveAt(),
+                    status);
         }).toList();
     }
 
@@ -1165,5 +1165,53 @@ public class ClassroomServiceImpl implements  ClassroomService {
         }
 
         return new LocalDateTime[]{startDate.atStartOfDay(), LocalDateTime.now()};
+    }
+
+    private int syncTeacherForClassTimetables(Integer classID, Teacher teacher) {
+        List<Timetable> timetables = timetableRepository.findByClassroom_ClassID(classID);
+        if (timetables.isEmpty()) {
+            return 0;
+        }
+
+        int changedCount = 0;
+        for (Timetable timetable : timetables) {
+            Integer currentId = timetable.getTeacher() != null ? timetable.getTeacher().getTeacherID() : null;
+            Integer nextId = teacher != null ? teacher.getTeacherID() : null;
+            if (!Objects.equals(currentId, nextId)) {
+                timetable.setTeacher(teacher);
+                changedCount++;
+            }
+        }
+
+        if (changedCount > 0) {
+            timetableRepository.saveAll(timetables);
+        }
+
+        return changedCount;
+    }
+
+    private String buildTeacherChangedContent(Teacher oldTeacher, Teacher newTeacher, int affectedSessions) {
+        String newTeacherName = newTeacher != null ? newTeacher.getFullName() : null;
+        String oldTeacherName = oldTeacher != null ? oldTeacher.getFullName() : null;
+
+        StringBuilder content = new StringBuilder();
+        if (oldTeacherName != null && newTeacherName != null) {
+            content.append("Giáo viên đã được thay đổi từ GV ")
+                    .append(oldTeacherName)
+                    .append(" sang GV ")
+                    .append(newTeacherName);
+        } else if (newTeacherName != null) {
+            content.append("Lớp học của bạn hiện do GV ")
+                    .append(newTeacherName)
+                    .append(" phụ trách");
+        } else {
+            content.append("Giáo viên phụ trách lớp học đã được cập nhật");
+        }
+
+        if (affectedSessions > 0) {
+            content.append("\nĐã cập nhật cho ").append(affectedSessions).append(" buổi học trong lịch");
+        }
+
+        return content.toString();
     }
 }

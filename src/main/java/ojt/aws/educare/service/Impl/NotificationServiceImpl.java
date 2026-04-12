@@ -137,14 +137,7 @@ public class NotificationServiceImpl implements NotificationService {
                 user.getUserID(), type, actionUrl)) {
             return;
         }
-        Notification notification = Notification.builder()
-                .user(user)
-                .type(type)
-                .title(title)
-                .content(content)
-                .actionUrl(actionUrl)
-                .isRead(Boolean.FALSE)
-                .build();
+        Notification notification = notificationMapper.toNotification(user, type, title, content, actionUrl);
         notificationRepository.save(notification);
     }
 

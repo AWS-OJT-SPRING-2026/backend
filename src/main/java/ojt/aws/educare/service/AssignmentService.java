@@ -26,4 +26,5 @@ public interface AssignmentService {
     ApiResponse<SubmissionResponse> getMySubmission(Integer assignmentId);
     ApiResponse<AssignmentResultResponse> getMyResult(Integer assignmentId);
     ApiResponse<List<QuestionBankResponse>> getMyQuestionBanks();
+    ApiResponse<List<UpcomingTaskResponse>> getUpcomingTasks();
 }
