@@ -36,12 +36,6 @@ spring:
           starttls:
             enable: true
 
-  # ── NEW: AWS Cognito Resource Server (replaces local JWT validation) ─────────
-  # Spring Boot auto-configures a NimbusJwtDecoder that:
-  #   1. Fetches the JWKS from the Cognito issuer's discovery endpoint.
-  #   2. Validates the RS256 signature of every incoming Bearer token.
-  # No code changes needed in SecurityConfig — just removing the explicit
-  # customJwtDecoder and letting Spring Boot wire this automatically.
   security:
     oauth2:
       resourceserver:
@@ -71,4 +65,3 @@ management:
   health:
     defaults:
       enabled: true              # keeps DataSourceHealthIndicator active
-
