@@ -18,6 +18,7 @@ import ojt.aws.educare.repository.AssignmentRepository;
 import ojt.aws.educare.repository.ClassMemberRepository;
 import ojt.aws.educare.repository.NotificationRepository;
 import ojt.aws.educare.service.NotificationService;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,9 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class NotificationServiceImpl implements NotificationService {
+
+    private static final int RETENTION_DAYS = 30;
+    private static final int DUPLICATE_WINDOW_SECONDS = 30;
 
     NotificationRepository notificationRepository;
     NotificationMapper notificationMapper;
@@ -131,12 +135,43 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    public ApiResponse<Void> deleteMyNotification(Integer notificationId) {
+        User currentUser = currentUserProvider.getCurrentUser();
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND));
+
+        if (!notification.getUser().getUserID().equals(currentUser.getUserID())) {
+            throw new AppException(ErrorCode.FORBIDDEN);
+        }
+
+        notificationRepository.delete(notification);
+
+        return ApiResponse.<Void>builder().message("Đã xóa thông báo").build();
+    }
+    @Override
+    @Transactional
     public void createNotification(User user, NotificationType type, String title, String content, String actionUrl) {
-        // Prevent duplicates: skip if identical notification already exists
-        if (actionUrl != null && notificationRepository.existsByUser_UserIDAndTypeAndActionUrl(
+        // Keep duplicate guard for most types, but allow repeated class/schedule updates.
+        if (!shouldBypassDuplicateGuard(type)
+                && actionUrl != null
+                && notificationRepository.existsByUser_UserIDAndTypeAndActionUrl(
                 user.getUserID(), type, actionUrl)) {
             return;
         }
+
+        // For schedule/teacher updates: only suppress exact same message in a short time window.
+        if (shouldBypassDuplicateGuard(type)
+                && actionUrl != null
+                && content != null
+                && notificationRepository.existsByUser_UserIDAndTypeAndActionUrlAndContentAndCreatedAtAfter(
+                user.getUserID(),
+                type,
+                actionUrl,
+                content,
+                LocalDateTime.now().minusSeconds(DUPLICATE_WINDOW_SECONDS))) {
+            return;
+        }
+
         Notification notification = notificationMapper.toNotification(user, type, title, content, actionUrl);
         notificationRepository.save(notification);
     }
@@ -160,6 +195,17 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
         notificationRepository.deleteByActionUrl(actionUrl);
+    }
+
+    @Scheduled(cron = "0 0 2 * * *")
+    @Transactional
+    public void purgeExpiredNotifications() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(RETENTION_DAYS);
+        notificationRepository.deleteByCreatedAtBefore(cutoff);
+    }
+
+    private boolean shouldBypassDuplicateGuard(NotificationType type) {
+        return type == NotificationType.SCHEDULE_CHANGED || type == NotificationType.TEACHER_CHANGED;
     }
 
     private NotificationResponse toResponse(Notification notification, Map<Integer, Assignment> assignmentById) {

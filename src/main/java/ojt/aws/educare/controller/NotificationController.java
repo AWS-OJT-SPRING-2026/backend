@@ -38,4 +38,10 @@ public class NotificationController {
     public ApiResponse<Void> markAllAsRead() {
         return notificationService.markAllAsRead();
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER', 'ADMIN')")
+    public ApiResponse<Void> deleteMyNotification(@PathVariable Integer id) {
+        return notificationService.deleteMyNotification(id);
+    }
 }

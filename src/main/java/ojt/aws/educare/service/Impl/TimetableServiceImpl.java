@@ -33,6 +33,7 @@ public class TimetableServiceImpl implements TimetableService {
 
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("dd/MM 'lúc' HH:mm");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
 
     TimetableRepository timetableRepository;
     ClassroomRepository classroomRepository;
@@ -119,8 +120,20 @@ public class TimetableServiceImpl implements TimetableService {
                 .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
         Teacher oldTeacher = classroom.getTeacher();
+        Integer oldSubjectId = classroom.getSubject() != null ? classroom.getSubject().getSubjectID() : null;
+        String oldSubjectName = classroom.getSubject() != null ? classroom.getSubject().getSubjectName() : null;
+        LocalDate oldClassStartDate = classroom.getStartDate();
+        LocalDate oldClassEndDate = classroom.getEndDate();
 
         List<Timetable> timetables = timetableRepository.findByClassroom_ClassID(classID);
+        LocalTime oldBulkStartTime = timetables.isEmpty() || timetables.get(0).getStartTime() == null
+                ? null
+                : timetables.get(0).getStartTime().toLocalTime();
+        LocalTime oldBulkEndTime = timetables.isEmpty() || timetables.get(0).getEndTime() == null
+                ? null
+                : timetables.get(0).getEndTime().toLocalTime();
+        String oldBulkTopic = timetables.isEmpty() ? null : timetables.get(0).getTopic();
+        String oldBulkMeetLink = timetables.isEmpty() ? null : timetables.get(0).getGoogleMeetLink();
 
         Teacher newTeacher = request.getTeacherID() != null ?
                 teacherRepository.findById(request.getTeacherID())
@@ -174,15 +187,20 @@ public class TimetableServiceImpl implements TimetableService {
 
         timetableRepository.saveAll(timetables);
 
-        String bulkContent = buildBulkScheduleChangedContent(classroom, request, oldTeacher, newTeacher, timetables.size());
-
-        notificationService.notifyClassroomStudents(
-                classID,
-                NotificationType.SCHEDULE_CHANGED,
-                "Lịch học thay đổi",
-                bulkContent,
-                "/student/schedule"
+        String bulkContent = buildBulkScheduleChangedContent(
+                classroom, request, oldTeacher, newTeacher, timetables.size(), oldBulkStartTime,
+                oldBulkEndTime, oldBulkTopic, oldBulkMeetLink, oldSubjectId,
+                oldSubjectName, oldClassStartDate, oldClassEndDate
         );
+        if (bulkContent != null) {
+            notificationService.notifyClassroomStudents(
+                    classID,
+                    NotificationType.SCHEDULE_CHANGED,
+                    "Lịch học thay đổi",
+                    bulkContent,
+                    "/student/schedule"
+            );
+        }
 
         return ApiResponse.success("Đã cập nhật hàng loạt thành công", null);
     }
@@ -225,14 +243,15 @@ public class TimetableServiceImpl implements TimetableService {
 
         String singleContent = buildSingleScheduleChangedContent(
                 oldStartTime, oldEndTime, oldTopic, oldMeetLink, oldTeacher, savedTimetable);
-
-        notificationService.notifyClassroomStudents(
-                timetable.getClassroom().getClassID(),
-                NotificationType.SCHEDULE_CHANGED,
-                "Lịch học thay đổi",
-                singleContent,
-                "/student/schedule"
-        );
+        if (singleContent != null) {
+            notificationService.notifyClassroomStudents(
+                    timetable.getClassroom().getClassID(),
+                    NotificationType.SCHEDULE_CHANGED,
+                    "Lịch học thay đổi",
+                    singleContent,
+                    buildSingleScheduleActionUrl(savedTimetable)
+            );
+        }
 
         return ApiResponse.success("Cập nhật buổi học thành công", timetableMapper.toResponse(savedTimetable));
     }
@@ -467,76 +486,138 @@ public class TimetableServiceImpl implements TimetableService {
             TimetableBulkUpdateRequest request,
             Teacher oldTeacher,
             Teacher newTeacher,
-            int totalSessions
+            int totalSessions,
+            LocalTime oldStartTime,
+            LocalTime oldEndTime,
+            String oldTopic,
+            String oldMeetLink,
+            Integer oldSubjectId,
+            String oldSubjectName,
+            LocalDate oldClassStartDate,
+            LocalDate oldClassEndDate
     ) {
         String subjectName = classroom.getSubject() != null ? classroom.getSubject().getSubjectName() : null;
-        String header = subjectName != null && !subjectName.isBlank()
+        String prefix = subjectName != null && !subjectName.isBlank()
                 ? "Toàn bộ lịch học môn " + subjectName + " của lớp đã được cập nhật"
                 : "Toàn bộ lịch học của lớp đã được cập nhật";
 
-        List<String> details = new ArrayList<>();
-        if (request.getStartTime() != null || request.getEndTime() != null) {
-            String from = request.getStartTime() != null ? request.getStartTime().format(TIME_FMT) : "--:--";
-            String to = request.getEndTime() != null ? request.getEndTime().format(TIME_FMT) : "--:--";
-            details.add("Thời gian các buổi học đã được điều chỉnh thành " + from + " - " + to);
-        }
+        List<String> changes = new ArrayList<>();
 
-        if (newTeacher != null && (oldTeacher == null || !Objects.equals(oldTeacher.getTeacherID(), newTeacher.getTeacherID()))) {
+        boolean teacherChanged = newTeacher != null
+                && (oldTeacher == null || !Objects.equals(oldTeacher.getTeacherID(), newTeacher.getTeacherID()));
+        if (teacherChanged) {
             if (oldTeacher != null) {
-                details.add("Giáo viên đã được thay đổi từ GV " + oldTeacher.getFullName() + " sang GV " + newTeacher.getFullName());
+                changes.add("Giáo viên đã được thay đổi từ GV " + oldTeacher.getFullName() + " sang GV " + newTeacher.getFullName());
             } else {
-                details.add("Lớp học hiện do GV " + newTeacher.getFullName() + " phụ trách");
+                changes.add("Lớp học hiện do GV " + newTeacher.getFullName() + " phụ trách");
             }
         }
 
-        if (request.getTopic() != null && !request.getTopic().isBlank()) {
-            details.add("Nội dung các buổi học đã được cập nhật");
+        if (request.getStartTime() != null || request.getEndTime() != null) {
+            LocalTime newStartTime = request.getStartTime() != null ? request.getStartTime() : oldStartTime;
+            LocalTime newEndTime = request.getEndTime() != null ? request.getEndTime() : oldEndTime;
+            boolean timeChanged = !Objects.equals(oldStartTime, newStartTime) || !Objects.equals(oldEndTime, newEndTime);
+
+            if (timeChanged) {
+                String oldRange = oldStartTime != null && oldEndTime != null
+                        ? oldStartTime.format(TIME_FMT) + " - " + oldEndTime.format(TIME_FMT)
+                        : null;
+                String newRange = newStartTime != null && newEndTime != null
+                        ? newStartTime.format(TIME_FMT) + " - " + newEndTime.format(TIME_FMT)
+                        : null;
+
+                if (oldRange != null && newRange != null) {
+                    changes.add("Thời gian các buổi học đã được đổi từ " + oldRange + " sang " + newRange);
+                } else if (newRange != null) {
+                    changes.add("Thời gian các buổi học đã được điều chỉnh thành " + newRange);
+                } else {
+                    changes.add("Thời gian các buổi học đã được cập nhật");
+                }
+            }
         }
 
-        if (request.getGoogleMeetLink() != null) {
-            details.add("Đường dẫn lớp học trực tuyến đã được cập nhật");
+        if (request.getTopic() != null && !Objects.equals(oldTopic, request.getTopic())) {
+            changes.add("Nội dung các buổi học đã được cập nhật");
         }
 
-        if (totalSessions > 0) {
-            details.add("Số buổi học bị ảnh hưởng: " + totalSessions);
+        if (request.getGoogleMeetLink() != null && !Objects.equals(oldMeetLink, request.getGoogleMeetLink())) {
+            changes.add("Đường dẫn lớp học trực tuyến đã được cập nhật");
         }
 
-        return details.isEmpty() ? header : header + "\n" + String.join("\n", details);
+        Integer newSubjectId = classroom.getSubject() != null ? classroom.getSubject().getSubjectID() : null;
+        String newSubjectName = classroom.getSubject() != null ? classroom.getSubject().getSubjectName() : null;
+        if (request.getSubjectID() != null && !Objects.equals(oldSubjectId, newSubjectId)) {
+            if (newSubjectName != null && !newSubjectName.isBlank()) {
+                changes.add("Môn học đã được đổi từ " + (oldSubjectName != null ? oldSubjectName : "(chưa có)") + " sang " + newSubjectName);
+            } else {
+                changes.add("Môn học của lớp đã được cập nhật");
+            }
+        }
+
+        LocalDate newClassStartDate = classroom.getStartDate();
+        LocalDate newClassEndDate = classroom.getEndDate();
+        boolean classDateChanged = !Objects.equals(oldClassStartDate, newClassStartDate)
+                || !Objects.equals(oldClassEndDate, newClassEndDate);
+        if ((request.getStartDate() != null || request.getEndDate() != null) && classDateChanged) {
+            changes.add("Khung thời gian học kỳ của lớp đã được điều chỉnh");
+        }
+
+        if (changes.isEmpty()) return null;
+
+        String primary = changes.get(0);
+        int otherCount = changes.size() - 1;
+        return prefix + "\n" + primary + (otherCount > 0 ? " và " + otherCount + " cập nhật khác" : "");
     }
 
     private String buildSingleScheduleChangedContent(
             LocalDateTime oldStartTime, LocalDateTime oldEndTime, String oldTopic, String oldMeetLink, Teacher oldTeacher, Timetable newTimetable) {
-        String header = "Buổi học vào " + oldStartTime.format(DATE_TIME_FMT) + " đã được thay đổi";
-        List<String> details = new ArrayList<>();
-
-        if (!Objects.equals(oldStartTime, newTimetable.getStartTime()) || !Objects.equals(oldEndTime, newTimetable.getEndTime())) {
-            String oldTime = oldStartTime.format(TIME_FMT);
-            String newTime = newTimetable.getStartTime().format(TIME_FMT);
-            details.add("Thời gian đã được đổi từ " + oldTime + " sang " + newTime);
-        }
+        String prefix = "Buổi học vào " + oldStartTime.format(DATE_TIME_FMT) + " đã được thay đổi";
+        List<String> changes = new ArrayList<>();
 
         Teacher newTeacher = newTimetable.getTeacher();
         Integer oldTeacherId = oldTeacher != null ? oldTeacher.getTeacherID() : null;
         Integer newTeacherId = newTeacher != null ? newTeacher.getTeacherID() : null;
-        if (!Objects.equals(oldTeacherId, newTeacherId) && newTeacher != null) {
+        boolean teacherChanged = !Objects.equals(oldTeacherId, newTeacherId) && newTeacher != null;
+        if (teacherChanged) {
             if (oldTeacher != null) {
-                details.add("Giáo viên đã được thay đổi từ GV " + oldTeacher.getFullName() + " sang GV " + newTeacher.getFullName());
+                changes.add("Giáo viên đã được thay đổi từ GV " + oldTeacher.getFullName() + " sang GV " + newTeacher.getFullName());
             } else {
-                details.add("Lớp học hiện do GV " + newTeacher.getFullName() + " phụ trách");
+                changes.add("Buổi học sẽ do GV " + newTeacher.getFullName() + " phụ trách");
             }
         }
 
+        boolean timeChanged = !Objects.equals(oldStartTime, newTimetable.getStartTime())
+                || !Objects.equals(oldEndTime, newTimetable.getEndTime());
+        if (timeChanged) {
+            String oldRange = oldStartTime.format(TIME_FMT) + " - " + oldEndTime.format(TIME_FMT);
+            String newRange = newTimetable.getStartTime().format(TIME_FMT) + " - "
+                    + newTimetable.getEndTime().format(TIME_FMT);
+            changes.add("Thời gian buổi học đã được đổi từ " + oldRange + " sang " + newRange);
+        }
+
         if (!Objects.equals(oldTopic, newTimetable.getTopic())) {
-            details.add("Nội dung buổi học đã được cập nhật");
+            changes.add("Nội dung buổi học đã được cập nhật");
         }
 
         if (!Objects.equals(oldMeetLink, newTimetable.getGoogleMeetLink())) {
-            details.add("Đường dẫn lớp học trực tuyến đã được cập nhật");
+            changes.add("Đường dẫn lớp học trực tuyến đã được cập nhật");
         }
 
-        return details.isEmpty() ? header : header + "\n" + String.join("\n", details);
+        if (changes.isEmpty()) return null;
+
+        String primary = changes.get(0);
+        int otherCount = changes.size() - 1;
+        return prefix + "\n" + primary + (otherCount > 0 ? " và " + otherCount + " cập nhật khác" : "");
+    }
+
+    private String buildSingleScheduleActionUrl(Timetable timetable) {
+        String date = timetable.getStartTime() != null
+                ? timetable.getStartTime().toLocalDate().format(DATE_FMT)
+                : LocalDate.now().format(DATE_FMT);
+        return "/student/schedule?focusTimetableId=" + timetable.getTimetableID() + "&date=" + date;
     }
 
 
 
 }
+

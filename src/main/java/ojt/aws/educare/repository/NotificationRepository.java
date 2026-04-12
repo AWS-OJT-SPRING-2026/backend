@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -28,5 +29,17 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
 
     boolean existsByUser_UserIDAndTypeAndActionUrl(Integer userId, NotificationType type, String actionUrl);
 
+    boolean existsByUser_UserIDAndTypeAndActionUrlAndContentAndCreatedAtAfter(
+            Integer userId,
+            NotificationType type,
+            String actionUrl,
+            String content,
+            LocalDateTime createdAt
+    );
+
     void deleteByActionUrl(String actionUrl);
+
+    long deleteByNotificationIdAndUser_UserID(Integer notificationId, Integer userId);
+
+    long deleteByCreatedAtBefore(LocalDateTime cutoff);
 }
