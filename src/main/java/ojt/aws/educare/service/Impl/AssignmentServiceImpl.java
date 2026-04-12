@@ -1347,7 +1347,21 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     private boolean isUpcomingAssignment(Assignment assignment, LocalDateTime now) {
         if (ASSIGNMENT_TYPE_TEST.equals(assignment.getAssignmentType())) {
-            return assignment.getStartTime() != null && assignment.getStartTime().isAfter(now);
+            LocalDateTime startTime = assignment.getStartTime();
+            LocalDateTime endTime = assignment.getDeadline();
+
+            // Upcoming test (not opened yet).
+            if (startTime != null && startTime.isAfter(now)) {
+                return true;
+            }
+
+            // Opened test (already started) should stay visible until it closes.
+            if (startTime != null && !startTime.isAfter(now)) {
+                return endTime == null || endTime.isAfter(now);
+            }
+
+            // Fallback when start time is missing.
+            return endTime != null && endTime.isAfter(now);
         }
         return assignment.getDeadline() != null && assignment.getDeadline().isAfter(now);
     }

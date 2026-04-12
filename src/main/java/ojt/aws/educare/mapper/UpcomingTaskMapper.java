@@ -11,7 +11,7 @@ public interface UpcomingTaskMapper {
 
     @Mapping(target = "id", source = "assignmentID")
     @Mapping(target = "type", source = "assignmentType")
-    @Mapping(target = "deadline", expression = "java(isTest(assignment) ? null : assignment.getDeadline())")
+    @Mapping(target = "deadline", source = "deadline")
     @Mapping(target = "startTime", expression = "java(isTest(assignment) ? assignment.getStartTime() : null)")
     @Mapping(target = "progress", ignore = true)
     @Mapping(target = "actionUrl", expression = "java(\"/student/tests/\" + assignment.getAssignmentID())")
