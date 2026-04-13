@@ -16,9 +16,8 @@ RUN mvn clean package -DskipTests
 FROM amazoncorretto:21-alpine-jdk
 WORKDIR /app
 
-# ── Timezone: force Asia/Ho_Chi_Minh at OS + JVM level ──────────────────────
-ENV TZ=Asia/Ho_Chi_Minh
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+# Install curl for AWS ECS container health checks
+RUN apk add --no-cache curl
 
 # Copy the built jar file from the build stage
 COPY --from=build /app/target/BE-0.0.1-SNAPSHOT.jar app.jar
@@ -26,5 +25,5 @@ COPY --from=build /app/target/BE-0.0.1-SNAPSHOT.jar app.jar
 # Expose the port the app runs on (default Spring Boot port)
 EXPOSE 8080
 
-# Command to run the application — JVM timezone flag as belt-and-suspenders
-ENTRYPOINT ["java", "-Duser.timezone=Asia/Ho_Chi_Minh", "-jar", "app.jar"]
+# Command to run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]
