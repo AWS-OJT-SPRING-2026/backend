@@ -23,6 +23,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
+
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
 
   mail:
     host: smtp.gmail.com
