@@ -43,6 +43,15 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Integer>
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
+    @Query("SELECT a FROM Assignment a WHERE a.classroom.classID IN :classroomIds " +
+           "AND a.status = 'ACTIVE' " +
+           "AND ((a.assignmentType = 'ASSIGNMENT' AND a.deadline BETWEEN :start AND :end) " +
+           "OR (a.assignmentType = 'TEST' AND a.startTime BETWEEN :start AND :end))")
+    List<Assignment> findTasksByClassroomIdsAndRange(
+            @Param("classroomIds") List<Integer> classroomIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     // Scheduler: assignments with deadline within a time window (for DUE_SOON / OVERDUE)
     @Query("SELECT a FROM Assignment a WHERE a.status = 'ACTIVE' AND a.deadline BETWEEN :start AND :end")
     List<Assignment> findPublishedByDeadlineBetween(

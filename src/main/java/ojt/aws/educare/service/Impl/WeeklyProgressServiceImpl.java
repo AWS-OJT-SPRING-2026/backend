@@ -20,7 +20,10 @@ import org.springframework.stereotype.Service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -43,14 +46,26 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
 
     @Override
     public ApiResponse<WeeklyProgressResponse> getMyWeeklyProgress() {
+        LocalDate today = LocalDate.now();
+        return getMyProgress("WEEK", today.with(DayOfWeek.MONDAY), null);
+    }
+
+    @Override
+    public ApiResponse<WeeklyProgressResponse> getMyProgress(String type, LocalDate startDate, YearMonth month) {
         User currentUser = currentUserProvider.getCurrentUser();
         Student student = studentRepository.findByUser(currentUser)
                 .orElseThrow(() -> new AppException(ErrorCode.STUDENT_NOT_FOUND));
 
-        // ISO week: Monday → Sunday
-        LocalDate today = LocalDate.now();
-        LocalDateTime weekStart = today.with(DayOfWeek.MONDAY).atStartOfDay();
-        LocalDateTime weekEnd = today.with(DayOfWeek.SUNDAY).atTime(23, 59, 59);
+        DateRange dateRange = resolveDateRange(type, startDate, month);
+        return buildProgressResponse(currentUser, student, dateRange.start(), dateRange.end());
+    }
+
+    private ApiResponse<WeeklyProgressResponse> buildProgressResponse(
+            User currentUser,
+            Student student,
+            LocalDateTime periodStart,
+            LocalDateTime periodEnd
+    ) {
 
         // Classrooms the student belongs to
         List<Integer> classroomIds = classMemberRepository
@@ -65,7 +80,7 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
 
         // Assignments and tests within this week
         List<Assignment> weekTasks = assignmentRepository
-                .findWeeklyTasksByClassroomIds(classroomIds, weekStart, weekEnd);
+                .findTasksByClassroomIdsAndRange(classroomIds, periodStart, periodEnd);
 
         List<Assignment> assignments = weekTasks.stream()
                 .filter(a -> TYPE_ASSIGNMENT.equals(a.getAssignmentType()))
@@ -95,10 +110,10 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
         // Attendance within this week
         List<Attendance> allAttendances = attendanceRepository
                 .findAllAttendanceByStudentUsernameAndTimeRange(
-                        currentUser.getUsername(), weekStart, weekEnd);
+                        currentUser.getUsername(), periodStart, periodEnd);
         List<Attendance> presentAttendances = attendanceRepository
                 .findAttendedByStudentUsernameAndTimeRange(
-                        currentUser.getUsername(), weekStart, weekEnd);
+                        currentUser.getUsername(), periodStart, periodEnd);
 
         int attendanceTotal = allAttendances.size();
         int attendanceDone = presentAttendances.size();
@@ -114,6 +129,33 @@ public class WeeklyProgressServiceImpl implements WeeklyProgressService {
                 progressPercent, totalTasks, completedTasks, breakdown);
 
         return ApiResponse.<WeeklyProgressResponse>builder().result(response).build();
+    }
+
+    private DateRange resolveDateRange(String type, LocalDate startDate, YearMonth month) {
+        String normalizedType = type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
+
+        if ("WEEK".equals(normalizedType)) {
+            if (startDate == null) {
+                throw new AppException(ErrorCode.TIMETABLE_DATE_INVALID);
+            }
+            LocalDate weekStartDate = startDate.with(DayOfWeek.MONDAY);
+            LocalDate weekEndDate = weekStartDate.plusDays(6);
+            return new DateRange(weekStartDate.atStartOfDay(), weekEndDate.atTime(LocalTime.MAX));
+        }
+
+        if ("MONTH".equals(normalizedType)) {
+            if (month == null) {
+                throw new AppException(ErrorCode.TIMETABLE_DATE_INVALID);
+            }
+            LocalDate monthStartDate = month.atDay(1);
+            LocalDate monthEndDate = month.atEndOfMonth();
+            return new DateRange(monthStartDate.atStartOfDay(), monthEndDate.atTime(LocalTime.MAX));
+        }
+
+        throw new AppException(ErrorCode.TIMETABLE_DATE_INVALID);
+    }
+
+    private record DateRange(LocalDateTime start, LocalDateTime end) {
     }
 
     private ApiResponse<WeeklyProgressResponse> emptyResponse() {
