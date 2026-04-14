@@ -5,6 +5,7 @@ import ojt.aws.educare.dto.request.*;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.PageResponse;
 import ojt.aws.educare.dto.response.StudentResponse;
+import ojt.aws.educare.dto.response.TeacherResponse;
 import ojt.aws.educare.dto.response.UserResponse;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +33,7 @@ public interface UserService {
 
     ApiResponse<Object> getMyProfile();
     ApiResponse<StudentResponse> updateMyStudentProfile(StudentUpdateRequest request, MultipartFile newAvatar);
+    ApiResponse<TeacherResponse> updateMyTeacherProfile(TeacherUpdateProfileRequest request, MultipartFile newAvatar);
     ApiResponse<String> initChangePassword(ChangePasswordInitRequest request);
     ApiResponse<String> confirmChangePassword(ChangePasswordConfirmRequest request);
 

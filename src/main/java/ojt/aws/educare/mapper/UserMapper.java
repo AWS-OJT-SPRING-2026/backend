@@ -97,10 +97,18 @@ public interface UserMapper {
 
     void updateUserFromStudentRequest(@MappingTarget User user, StudentUpdateRequest request);
 
+    void updateUserFromTeacherProfileRequest(@MappingTarget User user, TeacherUpdateProfileRequest request);
+
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "teacherID", ignore = true)
     @Mapping(target = "classrooms", ignore = true)
     void updateTeacherFromRequest(@MappingTarget Teacher teacher, TeacherUpdateRequest request);
+
+    @Mapping(target = "user", ignore = true)
+    @Mapping(target = "teacherID", ignore = true)
+    @Mapping(target = "classrooms", ignore = true)
+    @Mapping(target = "homeroomTeacher", ignore = true)
+    void updateTeacherFromProfileRequest(@MappingTarget Teacher teacher, TeacherUpdateProfileRequest request);
 
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "studentID", ignore = true)

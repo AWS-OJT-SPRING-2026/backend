@@ -484,6 +484,36 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public ApiResponse<TeacherResponse> updateMyTeacherProfile(TeacherUpdateProfileRequest request, MultipartFile newAvatar) {
+        User user = currentUserProvider.getCurrentUser();
+
+        if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.EMAIL_EXISTED);
+        }
+
+        Teacher teacher = user.getTeacher();
+        if (teacher == null) throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        userMapper.updateUserFromTeacherProfileRequest(user, request);
+        userMapper.updateTeacherFromProfileRequest(teacher, request);
+
+        if (newAvatar != null && !newAvatar.isEmpty()) {
+            if (user.getAvatarUrl() != null) {
+                s3UploadService.deleteFileFromUrl(user.getAvatarUrl());
+            }
+            String newAvatarUrl = s3UploadService.uploadFile(newAvatar);
+            user.setAvatarUrl(newAvatarUrl);
+        }
+
+        userRepository.save(user);
+        cognitoIdentityService.updateUserProfile(user);
+        TeacherResponse teacherResponse = userMapper.toTeacherResponse(teacher);
+        resolveAvatar(teacherResponse);
+        return ApiResponse.success("Cập nhật hồ sơ giáo viên thành công", teacherResponse);
+    }
+
+    @Override
     public ApiResponse<String> initChangePassword(ChangePasswordInitRequest request) {
         // Lấy thông tin user từ Token đang đăng nhập
         User user = currentUserProvider.getCurrentUser();

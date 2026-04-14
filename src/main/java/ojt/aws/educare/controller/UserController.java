@@ -8,6 +8,7 @@ import ojt.aws.educare.dto.request.*;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.PageResponse;
 import ojt.aws.educare.dto.response.StudentResponse;
+import ojt.aws.educare.dto.response.TeacherResponse;
 import ojt.aws.educare.dto.response.UserResponse;
 import ojt.aws.educare.service.UserService;
 import org.springframework.http.MediaType;
@@ -135,6 +136,13 @@ public class UserController {
             @RequestPart("data") @Valid StudentUpdateRequest request,
             @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
         return userService.updateMyStudentProfile(request, avatar);
+    }
+
+    @PutMapping(value = "/my-profile/teacher", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<TeacherResponse> updateMyTeacherProfile(
+            @RequestPart("data") @Valid TeacherUpdateProfileRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.updateMyTeacherProfile(request, avatar);
     }
 
     @PostMapping("/my-profile/change-password/init")

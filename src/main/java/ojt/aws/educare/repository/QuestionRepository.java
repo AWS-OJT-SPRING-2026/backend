@@ -24,6 +24,9 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
     List<Question> findByBank_Id(Integer bankId);
     List<Question> findByBank_IdAndDifficultyLevel(Integer bankId, Integer difficultyLevel);
 
+    @Query("SELECT q FROM Question q WHERE q.bank.bankName = :bankName")
+    List<Question> findByBankName(@Param("bankName") String bankName);
+
     @Query("SELECT q FROM Question q WHERE (:bankId IS NULL OR q.bank.id = :bankId) AND (:difficultyLevel IS NULL OR q.difficultyLevel = :difficultyLevel)")
     List<Question> findFilteredQuestions(
             @Param("bankId") Integer bankId,
