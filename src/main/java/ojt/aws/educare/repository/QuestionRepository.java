@@ -47,11 +47,13 @@ public interface QuestionRepository extends JpaRepository<Question, Integer> {
             WHERE (:userId IS NULL OR b.user.userID = :userId)
               AND (:bankId IS NULL OR b.id = :bankId)
               AND (:difficultyLevel IS NULL OR q.difficultyLevel = :difficultyLevel)
+              AND (:subjectId IS NULL OR b.subject.subjectID = :subjectId)
             """)
     List<QuestionRandomProjection> findRandomQuestionPreviewData(
             @Param("bankId") Integer bankId,
             @Param("difficultyLevel") Integer difficultyLevel,
-            @Param("userId") Integer userId
+            @Param("userId") Integer userId,
+            @Param("subjectId") Integer subjectId
     );
 
     @Query("""

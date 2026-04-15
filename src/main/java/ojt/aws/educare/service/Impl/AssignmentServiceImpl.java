@@ -708,7 +708,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Override
     @Transactional(readOnly = true)
     public ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(Integer bankId, Integer difficultyLevel,
-            Integer limit) {
+            Integer limit, Integer classroomId) {
         if (difficultyLevel != null && (difficultyLevel < 1 || difficultyLevel > 3)) {
             throw new AppException(ErrorCode.INVALID_KEY);
         }
@@ -723,8 +723,17 @@ public class AssignmentServiceImpl implements AssignmentService {
             }
         }
 
+        Integer subjectId = null;
+        if (classroomId != null) {
+            Classroom classroom = classroomRepository.findById(classroomId)
+                    .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
+            if (classroom.getSubject() != null) {
+                subjectId = classroom.getSubject().getSubjectID();
+            }
+        }
+
         List<QuestionRepository.QuestionRandomProjection> allQuestions = questionRepository
-                .findRandomQuestionPreviewData(bankId, difficultyLevel, currentUser.getUserID());
+                .findRandomQuestionPreviewData(bankId, difficultyLevel, currentUser.getUserID(), subjectId);
         List<QuestionRepository.QuestionRandomProjection> mutable = new ArrayList<>(allQuestions);
         Collections.shuffle(mutable);
 

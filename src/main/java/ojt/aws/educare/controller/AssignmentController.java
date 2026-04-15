@@ -86,8 +86,9 @@ public class AssignmentController {
     public ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(
             @RequestParam(required = false) Integer bankId,
             @RequestParam(required = false) Integer difficultyLevel,
-            @RequestParam(defaultValue = "10") Integer limit) {
-        return assignmentService.getRandomQuestions(bankId, difficultyLevel, limit);
+            @RequestParam(defaultValue = "10") Integer limit,
+            @RequestParam(required = false) Integer classroomId) {
+        return assignmentService.getRandomQuestions(bankId, difficultyLevel, limit, classroomId);
     }
 
     @GetMapping("/banks/my")

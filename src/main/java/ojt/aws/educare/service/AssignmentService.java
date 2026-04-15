@@ -15,7 +15,7 @@ public interface AssignmentService {
     ApiResponse<Void> deleteAssignment(Integer assignmentId);
     ApiResponse<List<AssignmentResponse>> getMyAssignments();
     ApiResponse<AssignmentDetailResponse> getAssignmentDetail(Integer assignmentId);
-    ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(Integer bankId, Integer difficultyLevel, Integer limit);
+    ApiResponse<List<QuestionPreviewResponse>> getRandomQuestions(Integer bankId, Integer difficultyLevel, Integer limit, Integer classroomId);
     ApiResponse<AssignmentReportResponse> getAssignmentReport(Integer assignmentId);
     ApiResponse<SubmissionResponse> getSubmissionDetailForTeacher(Integer submissionId);
     ApiResponse<List<AssignmentResponse>> getAssignmentsForStudent(Integer classroomId);
