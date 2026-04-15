@@ -10,5 +10,7 @@ public interface ChatSessionService {
     ApiResponse<List<ChatSessionResponse>> getMySessions();
 
     ApiResponse<ChatSessionResponse> upsertMySession(ChatSessionUpsertRequest request);
+
+    ApiResponse<Void> deleteMySession(String sessionKey);
 }
 
