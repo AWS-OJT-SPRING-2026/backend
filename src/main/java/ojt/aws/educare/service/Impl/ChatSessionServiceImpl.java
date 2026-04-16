@@ -88,6 +88,25 @@ public class ChatSessionServiceImpl implements ChatSessionService {
         return ApiResponse.success("Lưu lịch sử chat thành công", toChatSessionResponse(savedSession));
     }
 
+    @Override
+    @Transactional
+    public ApiResponse<Void> deleteMySession(String sessionKey) {
+        Student currentStudent = getCurrentStudent();
+        AIChatSession session = aiChatSessionRepository
+                .findByStudent_StudentIDAndSessionKey(currentStudent.getStudentID(), sessionKey)
+                .orElseThrow(() -> new AppException(ErrorCode.CHAT_SESSION_NOT_FOUND));
+
+        aiChatSessionRepository.delete(session);
+        return ApiResponse.success("Đã xoá phiên hội thoại thành công", null);
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 0 * * ?") // Every midnight
+    @Transactional
+    public void cleanupOldChatSessions() {
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(15);
+        aiChatSessionRepository.deleteByUpdatedAtBefore(cutoff);
+    }
+
     private ChatSessionResponse toChatSessionResponse(AIChatSession session) {
         List<ChatMessageRequest> messages = readMessages(session.getMessagesJson());
         List<ChatMessageResponse> messageResponses = chatSessionMapper.toChatMessageResponseList(messages);

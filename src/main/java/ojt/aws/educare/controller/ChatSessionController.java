@@ -34,5 +34,11 @@ public class ChatSessionController {
 	public ApiResponse<ChatSessionResponse> upsertMySession(@RequestBody ChatSessionUpsertRequest request) {
 		return chatSessionService.upsertMySession(request);
 	}
+
+	@org.springframework.web.bind.annotation.DeleteMapping("/{sessionKey}")
+	@PreAuthorize("hasRole('STUDENT')")
+	public ApiResponse<Void> deleteMySession(@org.springframework.web.bind.annotation.PathVariable String sessionKey) {
+		return chatSessionService.deleteMySession(sessionKey);
+	}
 }
 
