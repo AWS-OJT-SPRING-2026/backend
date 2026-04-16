@@ -10,6 +10,8 @@ import ojt.aws.educare.service.NotificationService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import ojt.aws.educare.dto.request.SendNotificationRequest;
+
 import java.util.List;
 
 @RestController
@@ -43,5 +45,13 @@ public class NotificationController {
     @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER', 'ADMIN')")
     public ApiResponse<Void> deleteMyNotification(@PathVariable Integer id) {
         return notificationService.deleteMyNotification(id);
+    }
+
+    @PostMapping("/send-class/{classId}")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ApiResponse<Void> sendClassNotification(
+            @PathVariable Integer classId,
+            @RequestBody @Valid SendNotificationRequest request) {
+        return notificationService.sendClassNotification(classId, request);
     }
 }

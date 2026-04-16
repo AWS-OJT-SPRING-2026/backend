@@ -14,9 +14,16 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Integer> {
 
-    List<Notification> findByUser_UserIDOrderByCreatedAtDesc(Integer userId);
+    @Query("SELECT n FROM Notification n LEFT JOIN n.targetClass tc LEFT JOIN tc.teacher t LEFT JOIN t.user tu " +
+           "WHERE n.user.userID = :userId OR " +
+           "(tc IS NOT NULL AND (tc.classID IN (SELECT cm.classroom.classID FROM ClassMember cm WHERE cm.student.user.userID = :userId AND cm.status = 'ACTIVE') OR tu.userID = :userId)) " +
+           "ORDER BY n.createdAt DESC")
+    List<Notification> findByUser_UserIDOrderByCreatedAtDesc(@Param("userId") Integer userId);
 
-    @Query("SELECT n FROM Notification n WHERE n.user.userID = :userId AND n.type IN :types ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN n.targetClass tc LEFT JOIN tc.teacher t LEFT JOIN t.user tu " +
+           "WHERE (n.user.userID = :userId OR " +
+           "(tc IS NOT NULL AND (tc.classID IN (SELECT cm.classroom.classID FROM ClassMember cm WHERE cm.student.user.userID = :userId AND cm.status = 'ACTIVE') OR tu.userID = :userId))) " +
+           "AND n.type IN :types ORDER BY n.createdAt DESC")
     List<Notification> findByUserIdAndTypeIn(
             @Param("userId") Integer userId,
             @Param("types") List<NotificationType> types);

@@ -6,6 +6,8 @@ import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "notifications")
@@ -43,6 +45,18 @@ public class Notification {
 
     @Column(name = "action_url", length = 500)
     String actionUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_class_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    Classroom targetClass;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "notification_reads", joinColumns = @JoinColumn(name = "notification_id"))
+    @Column(name = "user_id")
+    @Builder.Default
+    Set<Integer> readByUsers = new HashSet<>();
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

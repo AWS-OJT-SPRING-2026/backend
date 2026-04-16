@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import ojt.aws.educare.configuration.CurrentUserProvider;
+import ojt.aws.educare.dto.request.SendNotificationRequest;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.NotificationResponse;
 import ojt.aws.educare.entity.Assignment;
@@ -66,7 +67,8 @@ public class NotificationServiceImpl implements NotificationService {
     private static final List<NotificationType> IMPORTANT_TYPES = Arrays.asList(
             NotificationType.ASSIGNMENT_DUE_SOON,
             NotificationType.ASSIGNMENT_OVERDUE,
-            NotificationType.TEST_STARTING
+            NotificationType.TEST_STARTING,
+            NotificationType.REMINDER_CLASS
     );
 
     private static final List<NotificationType> LEARNING_TYPES = Arrays.asList(
@@ -78,8 +80,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final List<NotificationType> SYSTEM_TYPES = Arrays.asList(
             NotificationType.SCHEDULE_CHANGED,
-            NotificationType.TEACHER_CHANGED,
-            NotificationType.REMINDER_CLASS
+            NotificationType.TEACHER_CHANGED
     );
 
     @Override
@@ -115,10 +116,17 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND));
 
         if (!notification.getUser().getUserID().equals(currentUser.getUserID())) {
-            throw new AppException(ErrorCode.FORBIDDEN);
+            // If it's a class notification, allow marking as read
+            if (notification.getTargetClass() == null) {
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
         }
 
-        notification.setIsRead(Boolean.TRUE);
+        if (notification.getTargetClass() != null) {
+            notification.getReadByUsers().add(currentUser.getUserID());
+        } else {
+            notification.setIsRead(Boolean.TRUE);
+        }
         notificationRepository.save(notification);
         Map<Integer, Assignment> assignmentById = buildAssignmentMap(List.of(notification));
         return ApiResponse.<NotificationResponse>builder()
@@ -131,6 +139,16 @@ public class NotificationServiceImpl implements NotificationService {
     public ApiResponse<Void> markAllAsRead() {
         User currentUser = currentUserProvider.getCurrentUser();
         notificationRepository.markAllReadByUserId(currentUser.getUserID());
+        
+        // Find unread class notifications and mark them as read
+        List<Notification> allNotifs = notificationRepository.findByUser_UserIDOrderByCreatedAtDesc(currentUser.getUserID());
+        for (Notification n : allNotifs) {
+            if (n.getTargetClass() != null && !n.getReadByUsers().contains(currentUser.getUserID())) {
+                n.getReadByUsers().add(currentUser.getUserID());
+                notificationRepository.save(n);
+            }
+        }
+        
         return ApiResponse.<Void>builder()
                 .message("Đã đánh dấu tất cả thông báo là đã đọc")
                 .build();
@@ -144,6 +162,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND));
 
         if (!notification.getUser().getUserID().equals(currentUser.getUserID())) {
+            // Cannot delete a global class notification, just ignore or throw forbidden
             throw new AppException(ErrorCode.FORBIDDEN);
         }
 
@@ -194,12 +213,14 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public void notifyClassroomParticipants(Integer classId, NotificationType type, String title, String content, String actionUrl) {
-        classroomRepository.findById(classId)
-                .map(Classroom::getTeacher)
-                .map(teacher -> teacher.getUser())
-                .ifPresent(user -> createNotification(user, type, title, content, actionUrl));
+        Classroom classroom = classroomRepository.findById(classId)
+                .orElseThrow(() -> new AppException(ErrorCode.CLASSROOM_NOT_FOUND));
 
-        notifyClassroomStudents(classId, type, title, content, actionUrl);
+        User currentUser = currentUserProvider.getCurrentUser();
+
+        Notification notification = notificationMapper.toNotification(currentUser, type, title, content, actionUrl);
+        notification.setTargetClass(classroom);
+        notificationRepository.save(notification);
     }
 
     @Override
@@ -218,12 +239,25 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.deleteByCreatedAtBefore(cutoff);
     }
 
+    @Override
+    @Transactional
+    public ApiResponse<Void> sendClassNotification(Integer classId, SendNotificationRequest request) {
+        notifyClassroomParticipants(classId, NotificationType.REMINDER_CLASS, request.getTitle(), request.getContent(), request.getActionUrl());
+        return ApiResponse.<Void>builder().message("Đã gửi thông báo cho lớp thành công").build();
+    }
+
     private boolean shouldBypassDuplicateGuard(NotificationType type) {
         return type == NotificationType.SCHEDULE_CHANGED || type == NotificationType.TEACHER_CHANGED;
     }
 
     private NotificationResponse toResponse(Notification notification, Map<Integer, Assignment> assignmentById) {
         NotificationResponse response = notificationMapper.toResponse(notification);
+        
+        if (notification.getTargetClass() != null) {
+            User currentUser = currentUserProvider.getCurrentUser();
+            response.setIsRead(notification.getReadByUsers().contains(currentUser.getUserID()));
+        }
+
         resolveAssignment(notification, assignmentById).ifPresent(assignment -> {
             if (notification.getType() == NotificationType.ASSIGNMENT_NEW) {
                 if (ASSIGNMENT_TYPE_TEST.equalsIgnoreCase(assignment.getAssignmentType())) {
