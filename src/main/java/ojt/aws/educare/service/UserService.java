@@ -15,10 +15,10 @@ public interface UserService {
     ApiResponse<UserResponse> registerUser(UserRegisterRequest request);
     ApiResponse<List<UserResponse>> getAllUsers();
     ApiResponse<Object> getUserByID(Integer userID);
-    ApiResponse<UserResponse> createTeacher(TeacherCreateRequest request);
+    ApiResponse<UserResponse> createTeacher(TeacherCreateRequest request, MultipartFile avatar);
     ApiResponse<StudentResponse> createStudent(StudentCreateRequest request, MultipartFile avatar);
     ApiResponse<PageResponse<UserResponse>> getUsersWithPaginationAndFilter(int page, int size, String roleName, String keyword);
-    ApiResponse<UserResponse> updateTeacher(Integer userId, TeacherUpdateRequest request);
+    ApiResponse<UserResponse> updateTeacher(Integer userId, TeacherUpdateRequest request, MultipartFile newAvatar);
     ApiResponse<StudentResponse> updateStudent(Integer userId, StudentUpdateRequest request, MultipartFile newAvatar);
     ApiResponse<Void> toggleUserStatus(Integer userID);
     ApiResponse<Void> deleteUser(Integer userID);

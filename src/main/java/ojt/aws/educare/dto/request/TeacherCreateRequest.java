@@ -41,5 +41,7 @@ public class TeacherCreateRequest {
 
     LocalDate dateOfBirth;
 
+    String address;
+
     boolean isHomeroomTeacher;
 }

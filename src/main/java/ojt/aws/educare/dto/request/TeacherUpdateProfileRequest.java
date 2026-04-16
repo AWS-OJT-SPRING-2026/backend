@@ -25,4 +25,5 @@ public class TeacherUpdateProfileRequest {
     String gender;
     String specialization;
     LocalDate dateOfBirth;
+    String address;
 }

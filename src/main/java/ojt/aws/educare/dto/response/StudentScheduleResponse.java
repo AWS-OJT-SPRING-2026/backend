@@ -14,6 +14,7 @@ import java.util.List;
 public class StudentScheduleResponse {
     Integer timetableID;
     Integer classID;
+    String classStatus;
     String subjectName;
     String className;
     String teacherName;

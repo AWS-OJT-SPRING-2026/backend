@@ -44,20 +44,13 @@ public class Teacher {
     @Column(name = "DateOfBirth")
     LocalDate dateOfBirth;
 
+    @Column(name = "Address")
+    String address;
+
     @OneToMany(mappedBy = "teacher", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     List<Classroom> classrooms = new ArrayList<>();
-
-//    @OneToMany(mappedBy = "uploadedBy", cascade = CascadeType.ALL, orphanRemoval = true)
-//    @ToString.Exclude
-//    @EqualsAndHashCode.Exclude
-//    List<Material> materials = new ArrayList<>();
-
-//    @OneToMany(mappedBy = "teacher", cascade = CascadeType.ALL, orphanRemoval = true)
-//    @ToString.Exclude
-//    @EqualsAndHashCode.Exclude
-//    List<Assignment> assignments = new ArrayList<>();
 
     @OneToMany(mappedBy = "teacher", cascade = CascadeType.ALL, orphanRemoval = true)
     @ToString.Exclude

@@ -7,6 +7,7 @@ import ojt.aws.educare.configuration.CurrentUserProvider;
 import ojt.aws.educare.dto.response.ApiResponse;
 import ojt.aws.educare.dto.response.NotificationResponse;
 import ojt.aws.educare.entity.Assignment;
+import ojt.aws.educare.entity.Classroom;
 import ojt.aws.educare.entity.ClassMember;
 import ojt.aws.educare.entity.Notification;
 import ojt.aws.educare.entity.NotificationType;
@@ -15,6 +16,7 @@ import ojt.aws.educare.exception.AppException;
 import ojt.aws.educare.exception.ErrorCode;
 import ojt.aws.educare.mapper.NotificationMapper;
 import ojt.aws.educare.repository.AssignmentRepository;
+import ojt.aws.educare.repository.ClassroomRepository;
 import ojt.aws.educare.repository.ClassMemberRepository;
 import ojt.aws.educare.repository.NotificationRepository;
 import ojt.aws.educare.service.NotificationService;
@@ -48,6 +50,7 @@ public class NotificationServiceImpl implements NotificationService {
     CurrentUserProvider currentUserProvider;
     AssignmentRepository assignmentRepository;
     ClassMemberRepository classMemberRepository;
+    ClassroomRepository classroomRepository;
 
     static final String ASSIGNMENT_TYPE_TEST = "TEST";
     static final Pattern TEST_ACTION_URL_PATTERN = Pattern.compile("^/student/tests/(\\d+)$");
@@ -186,6 +189,17 @@ public class NotificationServiceImpl implements NotificationService {
             }
             createNotification(member.getStudent().getUser(), type, title, content, actionUrl);
         }
+    }
+
+    @Override
+    @Transactional
+    public void notifyClassroomParticipants(Integer classId, NotificationType type, String title, String content, String actionUrl) {
+        classroomRepository.findById(classId)
+                .map(Classroom::getTeacher)
+                .map(teacher -> teacher.getUser())
+                .ifPresent(user -> createNotification(user, type, title, content, actionUrl));
+
+        notifyClassroomStudents(classId, type, title, content, actionUrl);
     }
 
     @Override

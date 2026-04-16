@@ -354,6 +354,19 @@ public class ClassroomServiceImpl implements  ClassroomService {
         classroom.setStatus(isActive ? "INACTIVE" : "ACTIVE");
         classroomRepository.save(classroom);
 
+        if (isActive) {
+            String title = "Lớp học tạm ngưng hoạt động";
+            String content = "Lớp " + classroom.getClassName()
+                    + " đã được chuyển sang trạng thái Khóa. Lịch học liên quan đã được tạm gỡ bỏ.";
+            notificationService.notifyClassroomParticipants(
+                    classID,
+                    NotificationType.SCHEDULE_CHANGED,
+                    title,
+                    content,
+                    null
+            );
+        }
+
         String message = isActive ? "Đã khóa (tạm dừng) lớp học thành công" : "Đã mở lại lớp học thành công";
         return ApiResponse.success(message, null);
     }

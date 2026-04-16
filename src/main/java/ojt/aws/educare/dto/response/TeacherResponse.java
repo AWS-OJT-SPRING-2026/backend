@@ -32,6 +32,7 @@ public class TeacherResponse {
     String gender;
     boolean isHomeroomTeacher;
     LocalDate dateOfBirth;
+    String address;
 
     // --- Lớp giảng dạy ---
     List<String> classes;

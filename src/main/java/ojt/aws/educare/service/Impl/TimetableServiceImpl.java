@@ -259,12 +259,12 @@ public class TimetableServiceImpl implements TimetableService {
     // LẤY DANH SÁCH LỊCH CHO CALENDAR & TỰ ĐỘNG CẬP NHẬT TRẠNG THÁI
     @Override
     @Transactional
-    public ApiResponse<List<TimetableResponse>> getTimetables(LocalDateTime start, LocalDateTime end) {
+    public ApiResponse<List<TimetableResponse>> getTimetables(LocalDateTime start, LocalDateTime end, boolean includeInactive) {
         if (start == null || end == null || !end.isAfter(start)) {
             throw new AppException(ErrorCode.TIMETABLE_DATE_INVALID);
         }
 
-        List<Timetable> timetables = timetableRepository.findByTimeRange(start, end);
+        List<Timetable> timetables = timetableRepository.findByTimeRangeFiltered(start, end, includeInactive, LocalDateTime.now());
 
         syncStatuses(timetables, LocalDateTime.now());
 
@@ -312,10 +312,15 @@ public class TimetableServiceImpl implements TimetableService {
 
     @Override
     @Transactional
-    public ApiResponse<List<TimetableResponse>> getMyScheduleList(LocalDateTime start, LocalDateTime end) {
+    public ApiResponse<List<TimetableResponse>> getMyScheduleList(LocalDateTime start, LocalDateTime end, boolean includeInactive) {
         Teacher currentTeacher = getCurrentTeacher();
 
-        List<Timetable> timetables = timetableRepository.findByTeacherAndTimeRange(currentTeacher.getTeacherID(), start, end);
+        List<Timetable> timetables = timetableRepository.findByTeacherAndTimeRangeFiltered(
+                currentTeacher.getTeacherID(),
+                start,
+                end,
+                includeInactive,
+                LocalDateTime.now());
 
         syncStatuses(timetables, LocalDateTime.now());
 
@@ -345,7 +350,12 @@ public class TimetableServiceImpl implements TimetableService {
     public ApiResponse<TeacherScheduleStatsResponse> getMyScheduleStats(LocalDateTime start, LocalDateTime end) {
         Teacher currentTeacher = getCurrentTeacher();
 
-        List<Timetable> timetables = timetableRepository.findByTeacherAndTimeRange(currentTeacher.getTeacherID(), start, end);
+        List<Timetable> timetables = timetableRepository.findByTeacherAndTimeRangeFiltered(
+                currentTeacher.getTeacherID(),
+                start,
+                end,
+                false,
+                LocalDateTime.now());
 
         long total = timetables.size();
 
@@ -363,13 +373,18 @@ public class TimetableServiceImpl implements TimetableService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end) {
+    public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end, boolean includeInactive) {
         validateTimeRange(start, end);
 
         User currentUser = currentUserProvider.getCurrentUser();
         String username = currentUser.getUsername();
 
-        List<Timetable> timetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
+        List<Timetable> timetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRangeFiltered(
+                username,
+                start,
+                end,
+                includeInactive,
+                LocalDateTime.now());
         syncStatuses(timetables, LocalDateTime.now());
 
         // Lấy dữ liệu điểm danh và gom thành Map (Tra cứu siêu tốc)
@@ -395,7 +410,12 @@ public class TimetableServiceImpl implements TimetableService {
         String username = currentUser.getUsername();
 
         // Tiết học & Môn học tuần này
-        List<Timetable> weeklyTimetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRange(username, start, end);
+        List<Timetable> weeklyTimetables = timetableRepository.findTimetablesByStudentUsernameAndTimeRangeFiltered(
+                username,
+                start,
+                end,
+                false,
+                LocalDateTime.now());
         int totalClasses = weeklyTimetables.size();
 
         int totalSubjects = (int) weeklyTimetables.stream()

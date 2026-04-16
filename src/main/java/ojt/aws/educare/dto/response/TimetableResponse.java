@@ -14,6 +14,7 @@ public class TimetableResponse {
     Integer timetableID;
     Integer classID;
     String className;
+    String classStatus;
     String subjectName;
     Integer teacherID;
     String teacherName;

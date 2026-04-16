@@ -42,10 +42,12 @@ public class UserController {
         return userService.getUserByID(userID);
     }
 
-    @PostMapping("/teachers")
+    @PostMapping(value = "/teachers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<UserResponse> createTeacher(@Valid @RequestBody TeacherCreateRequest request) {
-        return userService.createTeacher(request);
+    public ApiResponse<UserResponse> createTeacher(
+            @RequestPart("data") @Valid TeacherCreateRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.createTeacher(request, avatar);
     }
 
     @PostMapping(value = "/students", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -68,12 +70,13 @@ public class UserController {
     }
 
 
-    @PutMapping("/teachers/{userId}")
+    @PutMapping(value = "/teachers/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<UserResponse> updateTeacher(
             @PathVariable Integer userId,
-            @Valid @RequestBody TeacherUpdateRequest request) {
-        return userService.updateTeacher(userId, request);
+            @RequestPart("data") @Valid TeacherUpdateRequest request,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
+        return userService.updateTeacher(userId, request, avatar);
     }
 
     @PutMapping(value = "/students/{userId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

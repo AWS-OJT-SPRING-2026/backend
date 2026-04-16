@@ -46,6 +46,7 @@ public interface TimetableMapper {
 
     @Mapping(target = "classID", source = "classroom.classID")
     @Mapping(target = "className", source = "classroom.className")
+    @Mapping(target = "classStatus", source = "classroom.status")
     @Mapping(target = "subjectName", source = "classroom.subject.subjectName")
     @Mapping(target = "teacherID", source = "teacher.teacherID")
     @Mapping(target = "teacherName", source = "teacher.fullName")
@@ -62,6 +63,7 @@ public interface TimetableMapper {
 
     //student
     @Mapping(target = "classID", source = "classroom.classID")
+    @Mapping(target = "classStatus", source = "classroom.status")
     @Mapping(target = "subjectName", source = "classroom.subject.subjectName")
     @Mapping(target = "className", source = "classroom.className")
     @Mapping(target = "teacherName", source = "teacher.fullName", defaultValue = "Chưa phân công")

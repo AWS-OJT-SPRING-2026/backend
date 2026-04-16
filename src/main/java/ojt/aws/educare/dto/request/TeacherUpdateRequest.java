@@ -26,5 +26,6 @@ public class TeacherUpdateRequest {
     String gender;
     String specialization;
     LocalDate dateOfBirth;
+    String address;
     boolean isHomeroomTeacher;
 }

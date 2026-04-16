@@ -14,15 +14,15 @@ public interface TimetableService {
     ApiResponse<Void> createRecurringTimetable(TimetableRecurringRequest request);
     ApiResponse<Void> bulkUpdateTimetable(Integer classID, TimetableBulkUpdateRequest request);
     ApiResponse<TimetableResponse> updateSingleTimetable(Integer iD, TimetableRequest request);
-    ApiResponse<List<TimetableResponse>> getTimetables(LocalDateTime start, LocalDateTime end);
+    ApiResponse<List<TimetableResponse>> getTimetables(LocalDateTime start, LocalDateTime end, boolean includeInactive);
     ApiResponse<TimetableStatsResponse> getStats();
     ApiResponse<Void> deleteTimetable(Integer iD);
     ApiResponse<Void> deleteAllByClass(Integer classID);
 
-    ApiResponse<List<TimetableResponse>> getMyScheduleList(LocalDateTime start, LocalDateTime end);
+    ApiResponse<List<TimetableResponse>> getMyScheduleList(LocalDateTime start, LocalDateTime end, boolean includeInactive);
     ApiResponse<TimetableResponse> updateMeetLink(Integer timetableID, UpdateMeetLinkRequest request);
     ApiResponse<TeacherScheduleStatsResponse> getMyScheduleStats(LocalDateTime start, LocalDateTime end);
 
-    ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end);
+    ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(LocalDateTime start, LocalDateTime end, boolean includeInactive);
     ApiResponse<StudentWeeklyStatsResponse> getStudentScheduleStats(LocalDateTime start, LocalDateTime end);
 }

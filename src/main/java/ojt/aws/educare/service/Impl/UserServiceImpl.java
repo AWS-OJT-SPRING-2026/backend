@@ -117,7 +117,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public ApiResponse<UserResponse> createTeacher(TeacherCreateRequest request) {
+    public ApiResponse<UserResponse> createTeacher(TeacherCreateRequest request, MultipartFile avatar) {
         if (userRepository.existsByUsername(request.getUsername()))
             throw new AppException(ErrorCode.USER_EXISTED);
         if (userRepository.existsByEmail(request.getEmail()))
@@ -140,6 +140,12 @@ public class UserServiceImpl implements UserService {
             user.setRole(role);
             user.setStatus("ACTIVE");
             user.setCognitoSub(cognitoSub);
+
+            if (avatar != null && !avatar.isEmpty()) {
+                String avatarUrl = s3UploadService.uploadFile(avatar);
+                user.setAvatarUrl(avatarUrl);
+            }
+
             User savedUser = userRepository.save(user);
 
             Teacher teacher = userMapper.toTeacher(request);
@@ -226,7 +232,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public ApiResponse<UserResponse> updateTeacher(Integer userId, TeacherUpdateRequest request) {
+    public ApiResponse<UserResponse> updateTeacher(Integer userId, TeacherUpdateRequest request, MultipartFile newAvatar) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
@@ -240,6 +246,14 @@ public class UserServiceImpl implements UserService {
 
         userMapper.updateUserFromTeacherRequest(user, request);
         userMapper.updateTeacherFromRequest(teacher, request);
+
+        if (newAvatar != null && !newAvatar.isEmpty()) {
+            if (user.getAvatarUrl() != null) {
+                s3UploadService.deleteFileFromUrl(user.getAvatarUrl());
+            }
+            String newAvatarUrl = s3UploadService.uploadFile(newAvatar);
+            user.setAvatarUrl(newAvatarUrl);
+        }
 
         userRepository.save(user);
         cognitoIdentityService.updateUserProfile(user);

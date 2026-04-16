@@ -18,6 +18,16 @@ public interface TimetableRepository extends JpaRepository<Timetable, Integer> {
             "ORDER BY t.startTime ASC")
     List<Timetable> findByTimeRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    @Query("SELECT t FROM Timetable t " +
+            "WHERE t.startTime < :end AND t.endTime > :start " +
+            "AND (:includeInactive = true OR UPPER(t.classroom.status) = 'ACTIVE' OR t.startTime < :now) " +
+            "ORDER BY t.startTime ASC")
+    List<Timetable> findByTimeRangeFiltered(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("includeInactive") boolean includeInactive,
+            @Param("now") LocalDateTime now);
+
     List<Timetable> findByClassroom_ClassID(Integer classId);
 
     void deleteByClassroom_ClassID(Integer classId);
@@ -33,6 +43,17 @@ public interface TimetableRepository extends JpaRepository<Timetable, Integer> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
+    @Query("SELECT t FROM Timetable t WHERE t.teacher.teacherID = :teacherID " +
+            "AND t.startTime >= :start AND t.endTime <= :end " +
+            "AND (:includeInactive = true OR UPPER(t.classroom.status) = 'ACTIVE' OR t.startTime < :now) " +
+            "ORDER BY t.startTime ASC")
+    List<Timetable> findByTeacherAndTimeRangeFiltered(
+            @Param("teacherID") Integer teacherID,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("includeInactive") boolean includeInactive,
+            @Param("now") LocalDateTime now);
+
     @Query("SELECT t FROM Timetable t " +
             "JOIN t.classroom c " +
             "JOIN c.classMembers cm " +
@@ -42,4 +63,17 @@ public interface TimetableRepository extends JpaRepository<Timetable, Integer> {
             @Param("username") String username,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+    @Query("SELECT t FROM Timetable t " +
+            "JOIN t.classroom c " +
+            "JOIN c.classMembers cm " +
+            "WHERE cm.student.user.username = :username " +
+            "AND t.startTime >= :start AND t.endTime <= :end " +
+            "AND (:includeInactive = true OR UPPER(c.status) = 'ACTIVE' OR t.startTime < :now)")
+    List<Timetable> findTimetablesByStudentUsernameAndTimeRangeFiltered(
+            @Param("username") String username,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("includeInactive") boolean includeInactive,
+            @Param("now") LocalDateTime now);
 }

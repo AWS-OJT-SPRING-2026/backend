@@ -28,8 +28,9 @@ public class TimetableController {
     @GetMapping
     public ApiResponse<List<TimetableResponse>> getTimetables(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return timetableService.getTimetables(start, end);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return timetableService.getTimetables(start, end, includeInactive);
     }
 
     @GetMapping("/stats")
@@ -96,9 +97,10 @@ public class TimetableController {
     @PreAuthorize("hasRole('TEACHER')")
     public ApiResponse<List<TimetableResponse>> getMyScheduleList(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
 
-        return timetableService.getMyScheduleList(start, end);
+        return timetableService.getMyScheduleList(start, end, includeInactive);
     }
 
     @GetMapping("/my-schedule/stats")
@@ -124,8 +126,9 @@ public class TimetableController {
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<List<StudentScheduleResponse>> getStudentSchedule(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return timetableService.getStudentSchedule(start, end);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return timetableService.getStudentSchedule(start, end, includeInactive);
     }
 
     @GetMapping("/my-schedule/student/stats")
