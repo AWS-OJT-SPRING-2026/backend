@@ -12,27 +12,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * CognitoUserSyncService — Just-In-Time (JIT) user provisioning for Cognito identities.
- *
- * <p>Called by {@link CognitoUserSyncFilter} on every authenticated request.
- * Responsibilities:
- * <ul>
- *   <li>Detect whether the Cognito user already has a local account.</li>
- *   <li>Create a new {@link User} row on first login (JIT provisioning).</li>
- *   <li>Link existing email-based accounts to their Cognito subject (sub).</li>
- *   <li>Keep the local role in sync with {@code custom:role} from Cognito.</li>
- *   <li>Prevent duplicate inserts via unique-constraint-safe checks.</li>
- * </ul>
- *
- * <p>Lookup order:
- * <ol>
- *   <li>By {@code cognitoSub} — fastest path for returning users.</li>
- *   <li>By {@code username} — keeps username-login accounts compatible.</li>
- *   <li>By {@code email} — fallback when email claim exists.</li>
- *   <li>Create new — first-time Cognito login, no pre-existing account.</li>
- * </ol>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,14 +20,6 @@ public class CognitoUserSyncService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
 
-    /**
-     * Synchronises a Cognito identity with the local {@code users} table.
-     *
-     * @param cognitoSub the Cognito {@code sub} claim — stable UUID per user
-     * @param username   preferred username extracted from Cognito claims (if present)
-     * @param email      email address from Cognito claims (can be null for username login)
-     * @param cognitoRole value of the {@code custom:role} claim (ADMIN | TEACHER | STUDENT | null)
-     */
     @Transactional
     public void syncUser(String cognitoSub, String username, String email, String cognitoRole) {
         if (cognitoSub == null || cognitoSub.isBlank()) {
@@ -100,9 +71,6 @@ public class CognitoUserSyncService {
         // ── 4. JIT provisioning: brand-new Cognito user ───────────────────────
         Role role = resolveRole(cognitoRole);
         if (role == null) {
-            // Last-resort: try every role name in descending privilege so the user
-            // at least gets a valid row. Without a row, CurrentUserProvider throws
-            // USER_NOT_FOUND which maps to HTTP 401 — worse than a wrong role.
             for (String fallback : List.of("STUDENT", "TEACHER", "ADMIN")) {
                 role = roleRepository.findByRoleName(fallback).orElse(null);
                 if (role != null) {
@@ -141,10 +109,6 @@ public class CognitoUserSyncService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    /**
-     * Updates the user's role if the Cognito role differs from the stored one.
-     * Saves only when a change is detected to avoid unnecessary dirty writes.
-     */
     private void updateRoleIfChanged(User user, String cognitoRole) {
         if (cognitoRole == null) return;
         Role newRole = resolveRole(cognitoRole);
@@ -157,14 +121,6 @@ public class CognitoUserSyncService {
         }
     }
 
-    /**
-     * Maps a Cognito role string to the matching {@link Role} entity.
-     * Cognito value (case-insensitive) → DB roleName:
-     *   ADMIN   → ADMIN
-     *   TEACHER → TEACHER
-     *   STUDENT → STUDENT
-     *   default → STUDENT
-     */
     private Role resolveRole(String cognitoRole) {
         String roleName = "STUDENT"; // safe default
         if (cognitoRole != null) {

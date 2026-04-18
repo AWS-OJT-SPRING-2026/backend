@@ -15,31 +15,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * CognitoUserSyncFilter — JIT (Just-In-Time) user provisioning for Cognito.
- *
- * <p>Runs once per request, <em>after</em> Spring Security's
- * {@code BearerTokenAuthenticationFilter} has validated the Cognito JWT and
- * populated the {@link SecurityContextHolder}.
- *
- * <p>If the authenticated principal is a {@link JwtAuthenticationToken} (i.e.,
- * the request carries a valid Cognito access token), this filter extracts:
- * <ul>
- *   <li>{@code sub} — Cognito user UUID (stable identifier)</li>
- *   <li>{@code cognito:username | username} — username claim (if present)</li>
- *   <li>{@code email} — user's email address (optional for username login)</li>
- *   <li>{@code custom:role} — application role attribute</li>
- * </ul>
- * and delegates to {@link CognitoUserSyncService} to create or update the local
- * {@code users} row.
- *
- * <p>For public endpoints (unauthenticated requests) the filter is a no-op.
- *
- * <p><strong>Registration note:</strong> This bean is intentionally NOT registered
- * as a standalone servlet filter. It is added to the Spring Security filter chain
- * via {@code httpSecurity.addFilterAfter(...)} in {@link SecurityConfig}, and the
- * auto-registration is disabled by {@code cognitoUserSyncFilterRegistration()}.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor

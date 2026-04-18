@@ -46,10 +46,6 @@ public class SecurityConfig {
     @Value("${cognito.app-client-id}")
     private String cognitoAppClientId;
 
-    // ── PUBLIC_ENDPOINTS ──────────────────────────────────────────────────────
-    // OLD local-auth endpoints are removed from the public list because login,
-    // introspect, and logout are now fully handled by AWS Cognito Hosted UI.
-    // Users authenticate via Cognito and receive a JWT that this service validates.
     private final String[] PUBLIC_ENDPOINTS = {
             "/auth/account-status",
             // OLD (commented): local auth endpoints no longer used with Cognito:
@@ -57,19 +53,12 @@ public class SecurityConfig {
             // "/auth/introspect",
             // "/auth/logout",
             // "/users/register",
-
-            // Forgot-password flow still served by this backend (not via Cognito):
             "/users/forgot-password",
             "/users/verify-otp",
             "/users/reset-password",
-
-            // Actuator health — public so ALB/ECS health checks work without a token.
-            // Path is relative to the servlet context-path (/api), so this matches
-            // GET /api/actuator/health. Only "health" is exposed (see application.yml).
             "/actuator/health",
     };
 
-    // NEW: Inject the JIT user-provisioning filter (runs after JWT auth).
     @Autowired
     private CognitoUserSyncService cognitoUserSyncService;
 
@@ -126,17 +115,6 @@ public class SecurityConfig {
         return jwtDecoder;
     }
 
-    /**
-     * CorsConfigurationSource Bean:
-     * - Được Spring Security dùng trong filter chain nội bộ (.cors(cors ->
-     * cors.configurationSource(...)))
-     * - Được FilterRegistrationBean bên dưới tái sử dụng để chạy trước Spring
-     * Security
-     *
-     * allowedOriginPatterns("*") + allowCredentials(true) là cú pháp bắt buộc trong
-     * Spring Boot 3.
-     * allowedOrigins("*") sẽ lỗi khi kết hợp với allowCredentials(true).
-     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -152,12 +130,6 @@ public class SecurityConfig {
         return source;
     }
 
-    /**
-     * FilterRegistrationBean chạy tại HIGHEST_PRECEDENCE (trước cả Spring
-     * Security).
-     * Đảm bảo OPTIONS preflight luôn nhận được CORS headers ngay cả khi
-     * Spring Security chưa kịp load. Tái sử dụng cùng config với bean bên trên.
-     */
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilterRegistrationBean() {
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(
@@ -181,23 +153,6 @@ public class SecurityConfig {
     // return jwtAuthenticationConverter;
     // }
 
-    /**
-     * NEW: Reads "custom:role" from the Cognito access token and maps it to a
-     * Spring Security GrantedAuthority with the ROLE_ prefix so that all existing
-     * {@code @PreAuthorize("hasRole('ADMIN')")} / hasRole('TEACHER') /
-     * hasRole('STUDENT')
-     * annotations continue to work without modification.
-     *
-     * Mapping:
-     * ADMIN → ROLE_ADMIN
-     * TEACHER → ROLE_TEACHER
-     * STUDENT → ROLE_STUDENT (default for unknown values)
-     *
-     * IMPORTANT: Cognito adds custom attributes to the id_token by default.
-     * To include "custom:role" in the access_token (which this resource server
-     * validates), configure a Pre Token Generation Lambda v2 trigger in the
-     * Cognito User Pool that copies the attribute into the access token claims.
-     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -210,8 +165,6 @@ public class SecurityConfig {
             }
             String email = jwt.getClaimAsString("email");
 
-            // Wrap syncUser in try/catch: any DB exception must NOT crash JWT
-            // authentication (which would produce a spurious 401 to the client).
             if (sub != null && !sub.isBlank()) {
                 try {
                     cognitoUserSyncService.syncUser(sub, username, email, cognitoRole);
@@ -233,9 +186,6 @@ public class SecurityConfig {
             }
 
             if (localUser == null || localUser.getRole() == null || localUser.getRole().getRoleName() == null) {
-                // User not yet in local DB (JIT provisioning may have failed).
-                // Grant ROLE_STUDENT so the JWT is still considered authenticated;
-                // CurrentUserProvider will re-check and surface a proper error if needed.
                 log.warn("[SecurityConfig] Local user not found for sub={} — granting temporary ROLE_STUDENT", sub);
                 return List.<GrantedAuthority>of(new SimpleGrantedAuthority("ROLE_STUDENT"));
             }

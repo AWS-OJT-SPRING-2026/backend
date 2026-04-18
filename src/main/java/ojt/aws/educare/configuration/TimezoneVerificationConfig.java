@@ -9,11 +9,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.TimeZone;
 
-/**
- * Logs timezone diagnostics on every application startup.
- * This makes it trivial to verify the timezone is correct in any environment
- * (localhost, Docker, AWS, etc.) by checking the first few log lines.
- */
 @Slf4j
 @Component
 @Order(1)
