@@ -69,15 +69,6 @@ public class SecurityConfig {
             "/actuator/health",
     };
 
-    // OLD: @Autowired CustomJwtDecoder customJwtDecoder;
-    // REPLACED: Spring Boot auto-configures a NimbusJwtDecoder from the
-    // spring.security.oauth2.resourceserver.jwt.issuer-uri in application.yml.
-    // Cognito exposes its JWK Set at:
-    //   https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_VLlAOfNlC/.well-known/jwks.json
-    // NOTE: CustomJwtDecoder still exists as a @Component bean and requires JWT_SIGNER_KEY
-    //       to remain in the environment — remove the @Component annotation from that class
-    //       once the old local-auth flow is fully decommissioned.
-
     // NEW: Inject the JIT user-provisioning filter (runs after JWT auth).
     @Autowired
     private CognitoUserSyncService cognitoUserSyncService;
@@ -99,24 +90,20 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                        .accessDeniedHandler(cognitoAccessDeniedHandler)
-                )
-                .authorizeHttpRequests(request ->
-                        request.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                                // Cho phép toàn bộ OPTIONS preflight đi qua mà không cần auth
-                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                                .anyRequest().authenticated());
+                        .accessDeniedHandler(cognitoAccessDeniedHandler))
+                .authorizeHttpRequests(request -> request.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // Cho phép toàn bộ OPTIONS preflight đi qua mà không cần auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .anyRequest().authenticated());
 
-        httpSecurity.oauth2ResourceServer(oauth2 ->
-                oauth2.jwt(jwtConfigurer ->
-                        // OLD:
-                        // jwtConfigurer.decoder(customJwtDecoder)
-                        //              .jwtAuthenticationConverter(jwtAuthenticationConverter())
-                        //
-                        // NEW: No explicit decoder — Spring Boot auto-wires NimbusJwtDecoder
-                        // from application.yml issuer-uri (fetches Cognito JWKS, validates RS256).
-                        jwtConfigurer.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-        );
+        httpSecurity.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtConfigurer ->
+        // OLD:
+        // jwtConfigurer.decoder(customJwtDecoder)
+        // .jwtAuthenticationConverter(jwtAuthenticationConverter())
+        //
+        // NEW: No explicit decoder — Spring Boot auto-wires NimbusJwtDecoder
+        // from application.yml issuer-uri (fetches Cognito JWKS, validates RS256).
+        jwtConfigurer.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         httpSecurity.csrf(AbstractHttpConfigurer::disable);
 
@@ -130,12 +117,10 @@ public class SecurityConfig {
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
         OAuth2TokenValidator<Jwt> withClientId = new JwtClaimValidator<String>(
                 "client_id",
-                clientId -> cognitoAppClientId.equals(clientId)
-        );
+                clientId -> cognitoAppClientId.equals(clientId));
         OAuth2TokenValidator<Jwt> withTokenUse = new JwtClaimValidator<String>(
                 "token_use",
-                tokenUse -> "access".equals(tokenUse)
-        );
+                tokenUse -> "access".equals(tokenUse));
 
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(withIssuer, withClientId, withTokenUse));
         return jwtDecoder;
@@ -143,10 +128,13 @@ public class SecurityConfig {
 
     /**
      * CorsConfigurationSource Bean:
-     * - Được Spring Security dùng trong filter chain nội bộ (.cors(cors -> cors.configurationSource(...)))
-     * - Được FilterRegistrationBean bên dưới tái sử dụng để chạy trước Spring Security
+     * - Được Spring Security dùng trong filter chain nội bộ (.cors(cors ->
+     * cors.configurationSource(...)))
+     * - Được FilterRegistrationBean bên dưới tái sử dụng để chạy trước Spring
+     * Security
      *
-     * allowedOriginPatterns("*") + allowCredentials(true) là cú pháp bắt buộc trong Spring Boot 3.
+     * allowedOriginPatterns("*") + allowCredentials(true) là cú pháp bắt buộc trong
+     * Spring Boot 3.
      * allowedOrigins("*") sẽ lỗi khi kết hợp với allowCredentials(true).
      */
     @Bean
@@ -165,40 +153,45 @@ public class SecurityConfig {
     }
 
     /**
-     * FilterRegistrationBean chạy tại HIGHEST_PRECEDENCE (trước cả Spring Security).
+     * FilterRegistrationBean chạy tại HIGHEST_PRECEDENCE (trước cả Spring
+     * Security).
      * Đảm bảo OPTIONS preflight luôn nhận được CORS headers ngay cả khi
      * Spring Security chưa kịp load. Tái sử dụng cùng config với bean bên trên.
      */
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilterRegistrationBean() {
-        FilterRegistrationBean<CorsFilter> bean =
-                new FilterRegistrationBean<>(new CorsFilter(corsConfigurationSource()));
+        FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(
+                new CorsFilter(corsConfigurationSource()));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return bean;
     }
 
-    // ── OLD jwtAuthenticationConverter (reads local "role" claim, no ROLE_ prefix) ──
+    // ── OLD jwtAuthenticationConverter (reads local "role" claim, no ROLE_ prefix)
+    // ──
     // @Bean
     // JwtAuthenticationConverter jwtAuthenticationConverter() {
-    //     JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-    //     jwtGrantedAuthoritiesConverter.setAuthorityPrefix("");
-    //     jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("role");
+    // JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new
+    // JwtGrantedAuthoritiesConverter();
+    // jwtGrantedAuthoritiesConverter.setAuthorityPrefix("");
+    // jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("role");
     //
-    //     JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-    //     jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
-    //     return jwtAuthenticationConverter;
+    // JwtAuthenticationConverter jwtAuthenticationConverter = new
+    // JwtAuthenticationConverter();
+    // jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
+    // return jwtAuthenticationConverter;
     // }
 
     /**
      * NEW: Reads "custom:role" from the Cognito access token and maps it to a
      * Spring Security GrantedAuthority with the ROLE_ prefix so that all existing
-     * {@code @PreAuthorize("hasRole('ADMIN')")} / hasRole('TEACHER') / hasRole('STUDENT')
+     * {@code @PreAuthorize("hasRole('ADMIN')")} / hasRole('TEACHER') /
+     * hasRole('STUDENT')
      * annotations continue to work without modification.
      *
      * Mapping:
-     *   ADMIN   → ROLE_ADMIN
-     *   TEACHER → ROLE_TEACHER
-     *   STUDENT → ROLE_STUDENT  (default for unknown values)
+     * ADMIN → ROLE_ADMIN
+     * TEACHER → ROLE_TEACHER
+     * STUDENT → ROLE_STUDENT (default for unknown values)
      *
      * IMPORTANT: Cognito adds custom attributes to the id_token by default.
      * To include "custom:role" in the access_token (which this resource server
